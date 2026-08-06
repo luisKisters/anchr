@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anchr — v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Marine ink. Deep blue-green, never neutral black. */
+  --abyss:#0E1418;
+  --deep:#090D10;
+  --current:#141C21;
+  --tide:#202C33;
+  --tide-lit:#2C3B44;
+  --foam:#E9EEF0;
+  --drift:#7B8C95;
+  --drift-dim:#4A585F;
+  /* One accent. Rope brass. It means: you can act here. */
+  --rope:#D9A05B;
+  --rope-dim:rgba(217,160,91,.16);
+
+  --sans:'Inter Tight',-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
+
+  /* Panel rails. 380pt panel: gutter 20, depth marker 20..54, line 64, content 82..360 */
+  --panel-w:380px;
+  --panel-h:560px;
+  --rail-gutter:20px;
+  --rail-line:64px;
+  --rail-content:82px;
+
+  --ease:cubic-bezier(.22,.61,.36,1);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--deep);
+  color:var(--foam);
+  font-family:var(--sans);
+  font-size:14px;
+  -webkit-font-smoothing:antialiased;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  min-height:100vh;
+  padding:40px 20px 96px;
+  overflow-x:hidden;
+}
+:focus-visible{outline:2px solid var(--rope);outline-offset:3px;border-radius:3px}
+
+/* ── The room the panel floats in ─────────────────────────────── */
+.stage{
+  position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex:1;
+  width:100%;
+}
+.stage::before{
+  content:'';
+  position:absolute;
+  width:760px;height:760px;
+  max-width:120vw;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(32,52,62,.55) 0%,transparent 68%);
+  pointer-events:none;
+}
+
+/* ── Panel ────────────────────────────────────────────────────── */
+.panel{
+  position:relative;
+  width:var(--panel-w);
+  height:var(--panel-h);
+  background:var(--abyss);
+  border:1px solid var(--tide);
+  border-radius:14px;
+  box-shadow:0 32px 80px rgba(0,0,0,.62), inset 0 1px 0 rgba(255,255,255,.045);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+
+.panel-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  height:44px;
+  padding:0 var(--rail-gutter);
+  flex:none;
+}
+.wordmark{
+  font-size:11px;
+  font-weight:500;
+  letter-spacing:.22em;
+  color:var(--drift);
+}
+.pulse{
+  width:5px;height:5px;border-radius:50%;
+  background:var(--drift-dim);
+  transition:background .3s var(--ease);
+}
+.pulse[data-live="true"]{background:var(--rope)}
+
+/* ── The fathom line: the signature ───────────────────────────── */
+/* A vertical rule with one node per refinement. The task you started with sits
+   at the surface, dim. Every time you make it smaller you descend one notch.
+   Depth is specificity — read in fathoms, in the machine's voice. */
+.line{
+  position:relative;
+  flex:1;
+  padding:14px 0 0;
+  overflow-y:auto;
+}
+.node{
+  position:relative;
+  display:block;
+  padding:11px var(--rail-gutter) 11px var(--rail-content);
+  min-height:52px;
+}
+/* The chain links node to node and stops at the anchor. The line has a bottom
+   because the descent has a bottom: whatever you are doing right now. */
+.node:not([data-current="true"])::after{
+  content:'';
+  position:absolute;
+  left:var(--rail-line);
+  top:26px;bottom:-2px;
+  width:1px;
+  background:var(--tide-lit);
+}
+.node .depth{
+  position:absolute;
+  left:var(--rail-gutter);
+  top:14px;
+  width:34px;
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:.06em;
+  color:var(--drift-dim);
+  text-align:right;
+}
+.node .dot{
+  position:absolute;
+  left:calc(var(--rail-line) - 3px);
+  top:17px;
+  width:7px;height:7px;
+  border-radius:50%;
+  background:var(--abyss);
+  border:1px solid var(--tide-lit);
+}
+.node .text{
+  display:block;
+  font-size:14px;
+  line-height:1.35;
+  color:var(--drift-dim);
+  transition:color .4s var(--ease);
+}
+
+/* The current anchor. Only one, always last, always the loudest thing here. */
+.node[data-current="true"]{padding-top:16px}
+.node[data-current="true"] .depth{
+  color:var(--rope);
+  top:20px;
+}
+.node[data-current="true"] .dot{
+  background:var(--rope);
+  border-color:var(--rope);
+  top:23px;
+  box-shadow:0 0 0 4px var(--rope-dim);
+}
+.node[data-current="true"] .text{
+  font-size:21px;
+  font-weight:500;
+  line-height:1.24;
+  letter-spacing:-.015em;
+  color:var(--foam);
+}
+.node[data-fresh="true"]{animation:descend .5s var(--ease) both}
+@keyframes descend{
+  from{opacity:0;transform:translateY(-8px)}
+  to{opacity:1;transform:none}
+}
+
+.panel-foot{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  height:40px;
+  padding:0 var(--rail-gutter);
+  border-top:1px solid var(--tide);
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:.05em;
+  color:var(--drift-dim);
+  flex:none;
+}
+.panel-foot .seen{color:var(--drift)}
+
+/* ── Intervention ─────────────────────────────────────────────── */
+/* It sinks in from the top and settles. It does not flash, and it cannot be
+   dismissed — the only exits are the three answers. */
+.veil{
+  position:fixed;
+  inset:0;
+  background:var(--deep);
+  z-index:50;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:40px;
+  transform:translateY(-100%);
+  transition:transform .42s var(--ease);
+}
+.veil[data-open="true"]{transform:none}
+.veil::after{
+  content:'';
+  position:absolute;
+  inset:0;
+  background:radial-gradient(ellipse at 50% 42%,rgba(30,48,58,.5) 0%,transparent 62%);
+  pointer-events:none;
+}
+
+.ask{
+  position:relative;
+  z-index:1;
+  width:100%;
+  max-width:560px;
+}
+.saw{
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:.16em;
+  color:var(--drift);
+  margin-bottom:36px;
+}
+.saw b{color:var(--rope);font-weight:500}
+.anchor-echo{
+  font-size:16px;
+  color:var(--drift);
+  margin-bottom:10px;
+}
+.echo-depth{
+  font-family:var(--mono);
+  font-size:11px;
+  color:var(--rope);
+  margin-right:14px;
+}
+.question{
+  font-size:38px;
+  font-weight:500;
+  letter-spacing:-.03em;
+  line-height:1.1;
+  margin-bottom:40px;
+}
+
+.answers{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+button{
+  font-family:inherit;
+  font-size:14px;
+  border:none;
+  background:none;
+  color:inherit;
+  cursor:pointer;
+}
+.act{
+  height:38px;
+  padding:0 18px;
+  border-radius:8px;
+  background:var(--rope);
+  color:#171008;
+  font-weight:600;
+  transition:filter .18s var(--ease);
+}
+.act:hover{filter:brightness(1.09)}
+.quiet{
+  height:38px;
+  padding:0 14px;
+  border-radius:8px;
+  color:var(--drift);
+  transition:color .18s var(--ease),background .18s var(--ease);
+}
+.quiet:hover{color:var(--foam);background:var(--current)}
+
+/* Sub-states of the intervention. */
+.step{display:none}
+.step[data-on="true"]{display:block;animation:descend .34s var(--ease) both}
+
+.field{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  border-bottom:1px solid var(--tide-lit);
+  padding-bottom:12px;
+  margin-bottom:32px;
+}
+.field .depth-next{
+  font-family:var(--mono);
+  font-size:11px;
+  color:var(--rope);
+  flex:none;
+}
+.field input{
+  flex:1;
+  border:none;
+  background:none;
+  color:var(--foam);
+  font-family:var(--sans);
+  font-size:22px;
+  font-weight:500;
+  letter-spacing:-.02em;
+  padding:0;
+}
+.field input:focus{outline:none}
+.field input::placeholder{color:var(--drift-dim)}
+
+/* ── Mockup chrome. Not part of the app. ──────────────────────── */
+.chrome{
+  position:fixed;
+  left:0;right:0;bottom:0;
+  z-index:60;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:22px;
+  height:56px;
+  border-top:1px solid var(--tide);
+  background:rgba(9,13,16,.9);
+  backdrop-filter:blur(12px);
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:.14em;
+  color:var(--drift-dim);
+}
+.chrome button{
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:.14em;
+  color:var(--drift);
+  transition:color .18s var(--ease);
+}
+.chrome button:hover{color:var(--rope)}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
+@media (max-width:460px){
+  .question{font-size:28px}
+  .panel{width:100%;max-width:var(--panel-w)}
+}
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="panel" role="group" aria-label="Anchr">
+    <div class="panel-head">
+      <span class="wordmark">ANCHR</span>
+      <span class="pulse" data-live="false" id="pulse" aria-hidden="true"></span>
+    </div>
+
+    <div class="line" id="line"></div>
+
+    <div class="panel-foot">
+      <span id="next">next look 4:12</span>
+      <span class="seen" id="seen">XCODE · 22M</span>
+    </div>
+  </div>
+</div>
+
+<!-- Intervention -->
+<div class="veil" id="veil" data-open="false" role="dialog" aria-modal="true" aria-labelledby="question">
+  <div class="ask">
+
+    <p class="saw" id="saw">YOUTUBE &nbsp;·&nbsp; <b>4 MIN</b></p>
+
+    <!-- Step 1: the question -->
+    <div class="step" data-on="true" id="step-ask">
+      <p class="anchor-echo"><span class="echo-depth" id="echo-depth">02F</span><span id="question">Draft the first paragraph</span></p>
+      <h1 class="question">Still this?</h1>
+      <div class="answers">
+        <button class="act" onclick="toStep('smaller')">Go smaller</button>
+        <button class="quiet" onclick="toStep('why')">Yes</button>
+        <button class="quiet" onclick="toStep('reanchor')">Change anchor</button>
+      </div>
+    </div>
+
+    <!-- Step 2: make the task smaller. The whole product is this screen. -->
+    <div class="step" id="step-smaller">
+      <p class="anchor-echo"><span class="echo-depth" id="echo-depth-2">02F</span><span id="echo-task">Draft the first paragraph</span></p>
+      <h1 class="question">What part of it, right now?</h1>
+      <div class="field">
+        <span class="depth-next" id="depth-next">03F</span>
+        <label class="sr-only" for="smaller-input" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">The smaller step</label>
+        <input id="smaller-input" value="Write the opening sentence" autocomplete="off">
+      </div>
+      <div class="answers">
+        <button class="act" onclick="dropAnchor()">Drop anchor</button>
+        <button class="quiet" onclick="toStep('ask')">Back</button>
+      </div>
+    </div>
+
+    <!-- Step 3: it asks once more. This is the friction, on purpose. -->
+    <div class="step" id="step-why">
+      <h1 class="question">Say why.</h1>
+      <div class="field">
+        <span class="depth-next">·</span>
+        <input id="why-input" placeholder="Because…" autocomplete="off">
+      </div>
+      <div class="answers">
+        <button class="act" onclick="close_()">Back to work</button>
+        <button class="quiet" onclick="toStep('smaller')">Go smaller instead</button>
+      </div>
+    </div>
+
+    <!-- Step 4: a different task entirely. -->
+    <div class="step" id="step-reanchor">
+      <h1 class="question">What are you doing instead?</h1>
+      <div class="field">
+        <span class="depth-next">00F</span>
+        <input id="reanchor-input" placeholder="The new anchor" autocomplete="off">
+      </div>
+      <div class="answers">
+        <button class="act" onclick="reanchor()">Drop anchor</button>
+        <button class="quiet" onclick="toStep('ask')">Back</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="chrome">
+  <span>MOCKUP</span>
+  <button onclick="open_()">INTERVENTION</button>
+  <button onclick="reset_()">RESET</button>
+</div>
+
+<script>
+// The anchor and its refinement chain. Descending = getting more specific.
+let chain = [
+  'Ship the migration guide',
+  'Write the guide intro',
+  'Draft the first paragraph',
+]
+
+const fathom = n => String(n).padStart(2,'0') + 'F'
+
+function render(freshIndex){
+  const line = document.getElementById('line')
+  line.innerHTML = ''
+  chain.forEach((text,i) => {
+    const current = i === chain.length - 1
+    const node = document.createElement('div')
+    node.className = 'node'
+    if (current) node.dataset.current = 'true'
+    if (i === freshIndex) node.dataset.fresh = 'true'
+    node.innerHTML =
+      `<span class="depth">${fathom(i)}</span>` +
+      `<span class="dot"></span>` +
+      `<span class="text">${escapeHtml(text)}</span>`
+    line.appendChild(node)
+  })
+  const anchor = chain[chain.length - 1]
+  const depth = fathom(chain.length - 1)
+  document.getElementById('question').textContent = anchor
+  document.getElementById('echo-task').textContent = anchor
+  document.getElementById('echo-depth').textContent = depth
+  document.getElementById('echo-depth-2').textContent = depth
+  document.getElementById('depth-next').textContent = fathom(chain.length)
+}
+
+function escapeHtml(s){
+  return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
+}
+
+function toStep(name){
+  document.querySelectorAll('.step').forEach(s => s.dataset.on = 'false')
+  document.getElementById('step-' + name).dataset.on = 'true'
+  const input = document.querySelector('#step-' + name + ' input')
+  if (input) setTimeout(() => input.focus(), 60)
+}
+
+function open_(){
+  toStep('ask')
+  document.getElementById('veil').dataset.open = 'true'
+  document.getElementById('pulse').dataset.live = 'true'
+  document.getElementById('seen').textContent = 'YOUTUBE · 4M'
+}
+
+function close_(){
+  document.getElementById('veil').dataset.open = 'false'
+  document.getElementById('pulse').dataset.live = 'false'
+  document.getElementById('seen').textContent = 'XCODE · 22M'
+  document.getElementById('next').textContent = 'next look 10:00'
+}
+
+function dropAnchor(){
+  const v = document.getElementById('smaller-input').value.trim()
+  if (v) chain.push(v)
+  render(chain.length - 1)
+  close_()
+}
+
+function reanchor(){
+  const v = document.getElementById('reanchor-input').value.trim()
+  if (v) chain = [v]
+  render(0)
+  close_()
+}
+
+function reset_(){
+  chain = ['Ship the migration guide','Write the guide intro','Draft the first paragraph']
+  document.getElementById('smaller-input').value = 'Write the opening sentence'
+  document.getElementById('why-input').value = ''
+  document.getElementById('reanchor-input').value = ''
+  document.getElementById('next').textContent = 'next look 4:12'
+  render()
+  close_()
+}
+
+// The overlay is not dismissable. esc does nothing; answer the question.
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('veil').dataset.open === 'true') {
+    e.preventDefault()
+  }
+  if (e.key === 'Enter' && document.activeElement.id === 'smaller-input') dropAnchor()
+  if (e.key === 'Enter' && document.activeElement.id === 'reanchor-input') reanchor()
+})
+
+render()
+
+// Deterministic state entry, so Tools/design-diff can capture a named state.
+//   index.html?state=ask | smaller | why | reanchor
+const requested = new URLSearchParams(location.search).get('state')
+if (requested) { open_(); toStep(requested) }
+</script>
+</body>
+</html>

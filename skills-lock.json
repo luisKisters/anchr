@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "concise-comms": {
+      "source": "luisKisters/skills",
+      "sourceType": "github",
+      "skillPath": "concise-comms/SKILL.md",
+      "computedHash": "96db949e24f7a1244961cddc3b5eadd25b95f957ea6937a5373bc30ad467c9c9"
+    },
+    "ralphex-plan-writer": {
+      "source": "luisKisters/skills",
+      "sourceType": "github",
+      "skillPath": "ralphex-plan-writer/SKILL.md",
+      "computedHash": "c7b7c177f9afa1a7ba5ea99f285bbe08a1b32e6086787e35f867938491cba000"
+    }
+  }
+}
