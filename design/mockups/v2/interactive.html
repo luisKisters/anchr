@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Anchr — interactive prototype</title>
+<style>
+  :root {
+    --fg: #fff;
+    --fg-dim: rgba(255,255,255,.48);
+    --fg-faint: rgba(255,255,255,.24);
+    --line: rgba(255,255,255,.12);
+    --line-soft: rgba(255,255,255,.07);
+    --sans: -apple-system, "Inter", "Helvetica Neue", sans-serif;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--sans); color: var(--fg); background: #000;
+    overflow: hidden; -webkit-font-smoothing: antialiased;
+  }
+
+  .desktop { position: fixed; inset: 0; background: #000 url("desktop.jpg") center / cover no-repeat; }
+
+  .veil {
+    position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    backdrop-filter: blur(26px) saturate(.6) brightness(.6);
+    -webkit-backdrop-filter: blur(26px) saturate(.6) brightness(.6);
+    background: rgba(0,0,0,.34);
+  }
+  .veil[data-on="true"] { display: flex; }
+  .veil.heavy {
+    background: rgba(0,0,0,.66);
+    backdrop-filter: blur(44px) saturate(.35) brightness(.3);
+    -webkit-backdrop-filter: blur(44px) saturate(.35) brightness(.3);
+  }
+  .veil.heavy[data-on="true"] { animation: sink .42s cubic-bezier(.16,.84,.34,1); }
+  @keyframes sink { from { opacity: 0; transform: translateY(-26px); } }
+
+  .sheet { width: 720px; max-width: calc(100vw - 96px); }
+  .sheet.narrow { width: 520px; }
+
+  .head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding-bottom: 14px; border-bottom: 1px solid var(--line);
+  }
+  .title { font-size: 15px; letter-spacing: -.01em; }
+  .meta { font-family: var(--mono); font-size: 11px; color: var(--fg-faint); letter-spacing: .06em; }
+
+  .anchorbar { display: flex; gap: 12px; align-items: baseline; padding: 14px 0 18px; }
+  .tag { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; color: var(--fg-faint); padding-top: 2px; }
+  .anchortext { font-size: 14px; color: var(--fg-dim); }
+
+  .rows { max-height: 56vh; overflow: auto; }
+  .row {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 7px 12px 7px 10px; border-left: 2px solid transparent; border-radius: 3px;
+    font-size: 14px; line-height: 1.35; cursor: default;
+  }
+  .row[data-sel="true"] { background: rgba(255,255,255,.07); border-left-color: var(--fg); }
+  .box {
+    width: 13px; height: 13px; margin-top: 3px; flex: none;
+    border: 1px solid rgba(255,255,255,.42); border-radius: 2px;
+  }
+  .row[data-done="true"] .box { background: var(--fg); border-color: var(--fg); }
+  .row[data-done="true"] .label { color: var(--fg-faint); text-decoration: line-through; }
+  .row[data-anchor="true"] .label { color: #fff; }
+  .label { color: rgba(255,255,255,.86); flex: 1; }
+  .rowtag { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; color: var(--fg-faint); padding-top: 3px; }
+
+  input, textarea {
+    font-family: var(--sans); color: var(--fg); background: transparent;
+    border: 0; outline: 0; width: 100%; font-size: 14px; line-height: 1.35;
+    border-bottom: 1px solid var(--fg); padding-bottom: 2px; resize: none;
+  }
+  textarea { border: 1px solid var(--line); border-radius: 4px; padding: 12px 14px; font-size: 13.5px; line-height: 1.6; }
+  textarea:focus { border-color: rgba(255,255,255,.4); }
+  textarea::placeholder, input::placeholder { color: var(--fg-faint); }
+
+  .keys {
+    display: flex; gap: 20px; flex-wrap: wrap; margin-top: 24px; padding-top: 14px;
+    border-top: 1px solid var(--line-soft);
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; color: var(--fg-faint);
+  }
+
+  /* intervention */
+  .ask { width: 560px; max-width: calc(100vw - 96px); }
+  .seen { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; color: var(--fg-dim); }
+  .echo { margin-top: 34px; font-size: 13px; color: var(--fg-faint); display: flex; gap: 10px; }
+  .echo .tag { padding-top: 2px; }
+  h1 { margin-top: 10px; font-size: 34px; font-weight: 500; letter-spacing: -.025em; line-height: 1.1; }
+  .answers { display: flex; gap: 10px; margin-top: 34px; }
+  button {
+    font-family: var(--sans); font-size: 13px; padding: 10px 18px; border-radius: 4px;
+    border: 1px solid rgba(255,255,255,.28); background: transparent; color: var(--fg); cursor: pointer;
+  }
+  button.primary { background: var(--fg); color: #000; border-color: var(--fg); }
+  button:hover { border-color: var(--fg); }
+  .field { margin-top: 30px; font-size: 19px; }
+  .field input { font-size: 19px; }
+  .note { margin-top: 16px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; color: var(--fg-faint); }
+
+  /* create */
+  .stack { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; }
+  .ghostbtn {
+    align-self: flex-start; font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em;
+    padding: 7px 12px; color: var(--fg-dim);
+  }
+
+  /* closed state hint + demo bar */
+  .hint {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    font-family: var(--mono); font-size: 11px; letter-spacing: .14em; color: rgba(255,255,255,.5);
+    padding: 12px 18px; border: 1px solid rgba(255,255,255,.14); border-radius: 5px;
+    background: rgba(0,0,0,.55); display: none;
+  }
+  .hint[data-on="true"] { display: block; }
+
+  .demo {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px; padding: 6px; border-radius: 6px;
+    background: rgba(0,0,0,.8); border: 1px solid var(--line); z-index: 50;
+  }
+  .demo button { font-family: var(--mono); font-size: 10px; padding: 6px 10px; letter-spacing: .06em; color: var(--fg-dim); }
+  .demo span { font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--fg-faint); align-self: center; padding: 0 8px; }
+</style>
+</head>
+<body>
+
+<div class="desktop"></div>
+<div class="hint" id="hint">⌥SPACE</div>
+
+<div class="veil" id="v-list"><div class="sheet">
+  <div class="head"><div class="title" id="l-name"></div><div class="meta" id="l-meta"></div></div>
+  <div class="anchorbar"><div class="tag">ANCHOR</div><div class="anchortext" id="l-anchor"></div></div>
+  <div class="rows" id="l-rows"></div>
+  <div class="keys" id="l-keys"></div>
+</div></div>
+
+<div class="veil" id="v-switch"><div class="sheet narrow">
+  <div class="head"><div class="title">Lists</div><div class="meta">⌘K</div></div>
+  <div class="rows" id="s-rows" style="margin-top:14px"></div>
+  <div class="keys"><span>↑↓ MOVE</span><span>↵ OPEN</span><span>C CONTEXT</span><span>N NEW LIST</span><span>ESC BACK</span></div>
+</div></div>
+
+<div class="veil" id="v-create"><div class="sheet">
+  <div class="head"><div class="title">New list</div><div class="meta" id="c-meta">PASTE A PLAN</div></div>
+  <div class="stack">
+    <input id="c-name" placeholder="Name">
+    <textarea id="c-plan" rows="10" placeholder="Paste your plan. Any format — bullets, numbers, tabs, checkboxes."></textarea>
+    <button class="ghostbtn" id="c-ctxbtn">+ CONTEXT</button>
+    <textarea id="c-ctx" rows="4" placeholder="What is this project, who are the people, what counts as working on it?" style="display:none"></textarea>
+  </div>
+  <div class="keys"><span>⌘↵ CREATE</span><span>ESC BACK</span></div>
+</div></div>
+
+<div class="veil" id="v-context"><div class="sheet">
+  <div class="head"><div class="title" id="x-name"></div><div class="meta">CONTEXT</div></div>
+  <div class="stack"><textarea id="x-ctx" rows="8"></textarea></div>
+  <div class="keys"><span>⌘↵ SAVE</span><span>ESC BACK</span></div>
+</div></div>
+
+<div class="veil heavy" id="v-ask"><div class="ask">
+  <div class="seen" id="a-seen"></div>
+  <div class="echo"><div class="tag">ANCHOR</div><div id="a-anchor"></div></div>
+  <h1>Still this?</h1>
+  <div class="answers">
+    <button class="primary" data-ans="back">Back to it</button>
+    <button data-ans="smaller">Go smaller</button>
+    <button data-ans="new">New anchor</button>
+  </div>
+  <div class="note">1 &nbsp;·&nbsp; 2 &nbsp;·&nbsp; 3</div>
+</div></div>
+
+<div class="veil heavy" id="v-smaller"><div class="ask">
+  <div class="seen" id="m-seen">ANCHR &nbsp;·&nbsp; SUGGESTED</div>
+  <div class="echo"><div class="tag">WAS</div><div id="m-was"></div></div>
+  <h1 id="m-q">What part of it, right now?</h1>
+  <div class="field"><input id="m-input"></div>
+  <div class="note">↵ SET &nbsp;·&nbsp; WRITTEN INTO THE LIST UNDER THE OLD ANCHOR</div>
+</div></div>
+
+<div class="demo">
+  <span>PROTOTYPE</span>
+  <button data-demo="toggle">⌥SPACE</button>
+  <button data-demo="ask">INTERVENTION</button>
+  <button data-demo="reset">RESET</button>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// store — flat items with a depth, exactly like the Markdown file
+// ---------------------------------------------------------------------------
+const SEED = () => ([
+  {
+    name: "Corvus — deal analysis",
+    context: "Deal analysis for Corvus. Robin reviews, Sam owns the accounts. Notion holds the draft, the extraction lives in a Google Sheet.",
+    anchor: 3,
+    items: [
+      { t: "Make the analysis up to date", d: 0, done: true },
+      { t: "All companies correct — no unanalyzed context", d: 1, done: true },
+      { t: "Exclude Northwind and every company Sam had contact with today", d: 1, done: true },
+      { t: "Review the analysis draft in Notion", d: 0, done: false },
+      { t: "Send the current extraction to Robin", d: 0, done: false },
+      { t: "Robin then:", d: 0, done: false },
+      { t: "Sends it to Sam for review", d: 1, done: false },
+      { t: "Asks Nadia if she has context on the deals", d: 1, done: false },
+      { t: "Asks Sam for a to-do list we can see", d: 1, done: false },
+      { t: "Bench Sam's existing list", d: 2, done: false },
+    ],
+  },
+  { name: "Anchr", context: "Building the V1 of Anchr. Swift, shells out to codex exec.", anchor: 0,
+    items: [
+      { t: "AX spike — measure text yield per app", d: 0, done: false },
+      { t: "Markdown round-trip test", d: 0, done: false },
+      { t: "InterventionPolicy table tests", d: 0, done: false },
+    ] },
+  { name: "Uni — Statistik", context: "", anchor: 0,
+    items: [ { t: "Übungsblatt 4", d: 0, done: false }, { t: "Aufgabe 2 nochmal rechnen", d: 1, done: false } ] },
+]);
+
+let lists = SEED();
+let active = 0, sel = 0, selList = 0, mode = "list", editing = null, pendingAsk = null;
+
+const L = () => lists[active];
+const $ = id => document.getElementById(id);
+
+// ---------------------------------------------------------------------------
+// paste normalizer — the same rules the Swift version will use
+// ---------------------------------------------------------------------------
+function normalize(text) {
+  const raw = text.replace(/\r/g, "").split("\n").filter(l => l.trim().length);
+  if (!raw.length) return [];
+
+  // indent unit: smallest non-zero leading width, tabs count as one level
+  const widths = raw.map(l => {
+    const m = l.match(/^[\t ]*/)[0];
+    return m.includes("\t") ? m.replace(/ /g, "").length * 4 : m.length;
+  });
+  const unit = Math.min(...widths.filter(w => w > 0).concat([4])) || 4;
+
+  const out = [];
+  for (let i = 0; i < raw.length; i++) {
+    let line = raw[i].trim();
+    let depth = Math.round(widths[i] / unit);
+
+    // headings become top-level items
+    const heading = /^#{1,6}\s+/.test(line);
+    if (heading) { line = line.replace(/^#{1,6}\s+/, ""); depth = 0; }
+
+    line = line.replace(/^([-*+•–]|\d+[.)])\s+/, "");      // bullet or number
+    let done = false;
+    const box = line.match(/^\[([ xX])\]\s*/);
+    if (box) { done = box[1].toLowerCase() === "x"; line = line.slice(box[0].length); }
+    line = line.replace(/\[\[([^\]|]+)(\|[^\]]+)?\]\]/g, "$1");  // strip wiki links
+    line = line.replace(/\*\*(.+?)\*\*/g, "$1").trim();
+    if (!line) continue;
+
+    const prev = out.length ? out[out.length - 1].d : -1;
+    out.push({ t: line, d: Math.max(0, Math.min(depth, prev + 1)), done });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// list edits
+// ---------------------------------------------------------------------------
+function descendants(i) {
+  const items = L().items; let n = 0;
+  for (let j = i + 1; j < items.length && items[j].d > items[i].d; j++) n++;
+  return n;
+}
+function shift(i, delta) {
+  const items = L().items;
+  if (delta > 0 && (i === 0 || items[i].d > items[i - 1].d)) return;
+  if (delta < 0 && items[i].d === 0) return;
+  const n = descendants(i);
+  for (let j = i; j <= i + n; j++) items[j].d += delta;
+}
+
+// ---------------------------------------------------------------------------
+// render
+// ---------------------------------------------------------------------------
+function render() {
+  ["v-list","v-switch","v-create","v-context","v-ask","v-smaller"].forEach(id => {
+    $(id).dataset.on = String(id === "v-" + (mode === "edit" || mode === "new" ? "list" : mode));
+  });
+  $("hint").dataset.on = String(mode === "closed");
+  if (mode === "list" || mode === "edit" || mode === "new") renderList();
+  if (mode === "switch") renderSwitch();
+}
+
+function renderList() {
+  const l = L();
+  const done = l.items.filter(i => i.done).length;
+  $("l-name").textContent = l.name;
+  $("l-meta").textContent = `${done} / ${l.items.length}  ·  ⌘K TO SWITCH`;
+  $("l-anchor").textContent = l.items[l.anchor] ? l.items[l.anchor].t : "—";
+
+  const rows = $("l-rows");
+  rows.innerHTML = "";
+  l.items.forEach((it, i) => {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.style.marginLeft = (it.d * 26) + "px";
+    row.dataset.sel = String(i === sel);
+    row.dataset.done = String(it.done);
+    row.dataset.anchor = String(i === l.anchor);
+    row.innerHTML = `<span class="box"></span>`;
+
+    if (editing !== null && i === sel) {
+      const inp = document.createElement("input");
+      inp.value = editing;
+      inp.addEventListener("input", e => editing = e.target.value);
+      row.appendChild(inp);
+      setTimeout(() => { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }, 0);
+    } else {
+      const lab = document.createElement("span");
+      lab.className = "label";
+      lab.textContent = it.t;
+      row.appendChild(lab);
+      if (i === l.anchor) {
+        const tag = document.createElement("span");
+        tag.className = "rowtag"; tag.textContent = "ANCHOR";
+        row.appendChild(tag);
+      }
+    }
+    row.addEventListener("click", () => { if (editing === null) { sel = i; render(); } });
+    rows.appendChild(row);
+  });
+
+  $("l-keys").innerHTML = editing !== null
+    ? `<span>↵ SAVE</span><span>ESC CANCEL</span><span>EMPTY + ↵ DELETES</span>`
+    : `<span>↑↓ / WS MOVE</span><span>SPACE DONE</span><span>↵ EDIT</span><span>⇥ / ⇧⇥ INDENT</span><span>N NEW</span><span>A ANCHOR</span><span>⌘K LISTS</span><span>ESC CLOSE</span>`;
+}
+
+function renderSwitch() {
+  const rows = $("s-rows");
+  rows.innerHTML = "";
+  lists.forEach((l, i) => {
+    const open = l.items.filter(x => !x.done).length;
+    const row = document.createElement("div");
+    row.className = "row";
+    row.dataset.sel = String(i === selList);
+    row.innerHTML = `<span class="label">${l.name}</span>
+      <span class="rowtag">${open} OPEN &nbsp; ${l.context ? "CONTEXT" : "NO CONTEXT"}</span>`;
+    row.addEventListener("click", () => { active = i; sel = 0; mode = "list"; render(); });
+    rows.appendChild(row);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// keys
+// ---------------------------------------------------------------------------
+addEventListener("keydown", e => {
+  const k = e.key;
+
+  // ⌥Space toggles the overlay, from anywhere except an intervention
+  if (e.code === "Space" && e.altKey && mode !== "ask" && mode !== "smaller") {
+    e.preventDefault();
+    mode = (mode === "closed") ? "list" : "closed";
+    return render();
+  }
+
+  if (mode === "closed") return;
+
+  if (mode === "edit" || mode === "new") return editKeys(e);
+  if (mode === "list") return listKeys(e);
+  if (mode === "switch") return switchKeys(e);
+  if (mode === "create") return createKeys(e);
+  if (mode === "context") return contextKeys(e);
+  if (mode === "ask") return askKeys(e);
+  if (mode === "smaller") return smallerKeys(e);
+});
+
+function listKeys(e) {
+  const l = L(), k = e.key.toLowerCase();
+  if (k === "arrowdown" || k === "s") { sel = Math.min(sel + 1, l.items.length - 1); }
+  else if (k === "arrowup" || k === "w") { sel = Math.max(sel - 1, 0); }
+  else if (e.key === " ") { l.items[sel].done = !l.items[sel].done; }
+  else if (e.key === "Tab") { shift(sel, e.shiftKey ? -1 : 1); }
+  else if (e.key === "Enter") { editing = l.items[sel].t; mode = "edit"; }
+  else if (k === "n") {
+    const at = sel + 1 + descendants(sel);
+    l.items.splice(at, 0, { t: "", d: l.items[sel] ? l.items[sel].d : 0, done: false });
+    sel = at; editing = ""; mode = "new";
+  }
+  else if (k === "a") { l.anchor = sel; }
+  else if (k === "k" && e.metaKey) { selList = active; mode = "switch"; }
+  else if (e.key === "Escape") { mode = "closed"; }
+  else return;
+  e.preventDefault();
+  render();
+}
+
+function editKeys(e) {
+  if (e.key === "Enter") {
+    const txt = editing.trim();
+    if (!txt) { L().items.splice(sel, 1); sel = Math.max(0, sel - 1); }
+    else L().items[sel].t = txt;
+    editing = null; mode = "list";
+  } else if (e.key === "Escape") {
+    if (mode === "new") { L().items.splice(sel, 1); sel = Math.max(0, sel - 1); }
+    editing = null; mode = "list";
+  } else if (e.key === "Tab") {
+    L().items[sel].t = editing.trim() || L().items[sel].t;
+    shift(sel, e.shiftKey ? -1 : 1);
+  } else return;
+  e.preventDefault();
+  render();
+}
+
+function switchKeys(e) {
+  const k = e.key.toLowerCase();
+  if (k === "arrowdown" || k === "s") selList = Math.min(selList + 1, lists.length - 1);
+  else if (k === "arrowup" || k === "w") selList = Math.max(selList - 1, 0);
+  else if (e.key === "Enter") { active = selList; sel = 0; mode = "list"; }
+  else if (k === "c") { $("x-name").textContent = lists[selList].name; $("x-ctx").value = lists[selList].context; mode = "context"; setTimeout(() => $("x-ctx").focus(), 0); }
+  else if (k === "n") { $("c-name").value = ""; $("c-plan").value = ""; $("c-ctx").value = ""; $("c-ctx").style.display = "none"; mode = "create"; setTimeout(() => $("c-name").focus(), 0); }
+  else if (e.key === "Escape") mode = "list";
+  else return;
+  e.preventDefault();
+  render();
+}
+
+function createKeys(e) {
+  if (e.key === "Enter" && e.metaKey) { createList(); e.preventDefault(); }
+  else if (e.key === "Escape") { mode = "switch"; e.preventDefault(); render(); }
+}
+$("c-ctxbtn").addEventListener("click", () => {
+  const t = $("c-ctx");
+  t.style.display = t.style.display === "none" ? "block" : "none";
+  if (t.style.display === "block") t.focus();
+});
+function createList() {
+  const items = normalize($("c-plan").value);
+  if (!items.length) return;
+  lists.push({
+    name: $("c-name").value.trim() || items[0].t.slice(0, 40),
+    context: $("c-ctx").value.trim(),
+    anchor: items.findIndex(i => !i.done) < 0 ? 0 : items.findIndex(i => !i.done),
+    items,
+  });
+  active = lists.length - 1; sel = L().anchor; mode = "list"; render();
+}
+
+function contextKeys(e) {
+  if (e.key === "Enter" && e.metaKey) { lists[selList].context = $("x-ctx").value.trim(); mode = "switch"; e.preventDefault(); render(); }
+  else if (e.key === "Escape") { mode = "switch"; e.preventDefault(); render(); }
+}
+
+// ---------------------------------------------------------------------------
+// intervention
+// ---------------------------------------------------------------------------
+function openAsk() {
+  const l = L();
+  pendingAsk = { seen: "YOUTUBE  ·  4 MIN", smaller: "Export the v3 sheet as CSV" };
+  $("a-seen").textContent = pendingAsk.seen;
+  $("a-anchor").textContent = l.items[l.anchor].t;
+  mode = "ask"; render();
+}
+function askKeys(e) {
+  if (e.key === "1" || e.key === "Enter") answer("back");
+  else if (e.key === "2") answer("smaller");
+  else if (e.key === "3") answer("new");
+  else return;
+  e.preventDefault();
+}
+document.querySelectorAll("[data-ans]").forEach(b => b.addEventListener("click", () => answer(b.dataset.ans)));
+
+function answer(a) {
+  const l = L();
+  if (a === "back") { mode = "closed"; return render(); }
+  $("m-was").textContent = l.items[l.anchor].t;
+  $("m-q").textContent = a === "smaller" ? "What part of it, right now?" : "What are you doing instead?";
+  $("m-seen").textContent = a === "smaller" ? "ANCHR  ·  SUGGESTED" : "NEW ANCHOR";
+  $("m-input").value = a === "smaller" ? pendingAsk.smaller : "";
+  mode = "smaller"; render();
+  setTimeout(() => { $("m-input").focus(); $("m-input").select(); }, 30);
+}
+
+function smallerKeys(e) {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  const txt = $("m-input").value.trim();
+  if (!txt) return;
+  const l = L();
+  const at = l.anchor + 1 + descendants(l.anchor);
+  l.items.splice(at, 0, { t: txt, d: l.items[l.anchor].d + 1, done: false });
+  l.anchor = at; sel = at;
+  mode = "list"; render();
+  setTimeout(() => { if (mode === "list") { mode = "closed"; render(); } }, 1400);
+}
+
+// ---------------------------------------------------------------------------
+document.querySelector(".demo").addEventListener("click", e => {
+  const b = e.target.closest("button[data-demo]"); if (!b) return;
+  if (b.dataset.demo === "toggle") mode = mode === "closed" ? "list" : "closed";
+  if (b.dataset.demo === "ask") return openAsk();
+  if (b.dataset.demo === "reset") { lists = SEED(); active = 0; sel = 0; mode = "list"; }
+  render();
+});
+
+render();
+</script>
+</body>
+</html>

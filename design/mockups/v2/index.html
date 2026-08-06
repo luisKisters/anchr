@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Anchr — V1 mockup</title>
+<style>
+  :root {
+    --ink: #000;
+    --fg: #fff;
+    --fg-dim: rgba(255,255,255,.48);
+    --fg-faint: rgba(255,255,255,.24);
+    --line: rgba(255,255,255,.12);
+    --line-soft: rgba(255,255,255,.07);
+    --sans: -apple-system, "Inter", "Helvetica Neue", sans-serif;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: var(--sans);
+    color: var(--fg);
+    background: #000;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* the real screen underneath, so every state is judged in context */
+  .desktop {
+    position: fixed;
+    inset: 0;
+    background: #000 url("desktop.jpg") center / cover no-repeat;
+  }
+
+  /* ---------- the one surface: a full-screen veil ---------- */
+
+  .veil {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(26px) saturate(.6) brightness(.6);
+    -webkit-backdrop-filter: blur(26px) saturate(.6) brightness(.6);
+    background: rgba(0,0,0,.34);
+  }
+  .veil[data-on="true"] { display: flex; }
+  .veil[data-heavy="true"] {
+    background: rgba(0,0,0,.66);
+    backdrop-filter: blur(44px) saturate(.35) brightness(.3);
+    -webkit-backdrop-filter: blur(44px) saturate(.35) brightness(.3);
+  }
+
+  /* ---------- list overlay ---------- */
+
+  .sheet { width: 720px; max-width: calc(100vw - 96px); }
+
+  .sheet-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .list-name { font-size: 15px; letter-spacing: -.01em; }
+  .list-meta { font-family: var(--mono); font-size: 11px; color: var(--fg-faint); letter-spacing: .06em; }
+
+  .anchor-bar {
+    display: flex;
+    gap: 12px;
+    align-items: baseline;
+    padding: 14px 0 18px;
+  }
+  .anchor-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .12em;
+    color: var(--fg-faint);
+    padding-top: 2px;
+  }
+  .anchor-text { font-size: 14px; color: var(--fg-dim); }
+
+  ul.tree { list-style: none; }
+  ul.tree ul { list-style: none; margin-left: 26px; }
+
+  .row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 7px 12px 7px 10px;
+    border-left: 2px solid transparent;
+    border-radius: 3px;
+    font-size: 14px;
+    line-height: 1.35;
+  }
+  .row[data-sel="true"] {
+    background: rgba(255,255,255,.07);
+    border-left-color: var(--fg);
+  }
+
+  .box {
+    width: 13px;
+    height: 13px;
+    margin-top: 3px;
+    flex: none;
+    border: 1px solid rgba(255,255,255,.42);
+    border-radius: 2px;
+  }
+  .row[data-done="true"] .box { background: var(--fg); border-color: var(--fg); }
+  .row[data-done="true"] .label { color: var(--fg-faint); text-decoration: line-through; }
+
+  .label { color: rgba(255,255,255,.86); }
+  .label em { font-style: normal; color: inherit; }
+
+  .edit {
+    border-bottom: 1px solid var(--fg);
+    padding-bottom: 2px;
+  }
+  .caret {
+    display: inline-block;
+    width: 1px;
+    height: 15px;
+    margin-left: 1px;
+    background: var(--fg);
+    vertical-align: -2px;
+    animation: blink 1.1s step-end infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .proposal {
+    margin-top: 20px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    align-items: center;
+    font-size: 13px;
+    color: var(--fg-dim);
+  }
+  .proposal b { color: var(--fg); font-weight: 500; }
+
+  .keys {
+    display: flex;
+    gap: 22px;
+    flex-wrap: wrap;
+    margin-top: 26px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line-soft);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .06em;
+    color: var(--fg-faint);
+  }
+
+  /* ---------- intervention ---------- */
+
+  .ask { width: 560px; max-width: calc(100vw - 96px); text-align: left; }
+
+  .seen {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    color: var(--fg-dim);
+  }
+  .echo {
+    margin-top: 34px;
+    font-size: 13px;
+    color: var(--fg-faint);
+    display: flex;
+    gap: 10px;
+  }
+  .echo span:first-child { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; padding-top: 2px; }
+
+  h1 {
+    margin-top: 10px;
+    font-size: 34px;
+    font-weight: 500;
+    letter-spacing: -.025em;
+    line-height: 1.1;
+  }
+
+  .answers { display: flex; gap: 10px; margin-top: 34px; }
+
+  button {
+    font-family: var(--sans);
+    font-size: 13px;
+    padding: 10px 18px;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,.28);
+    background: transparent;
+    color: var(--fg);
+    cursor: pointer;
+  }
+  button.primary { background: var(--fg); color: #000; border-color: var(--fg); }
+  button:hover { border-color: var(--fg); }
+  button.primary:hover { opacity: .88; }
+
+  .field {
+    margin-top: 30px;
+    padding-bottom: 9px;
+    border-bottom: 1px solid rgba(255,255,255,.35);
+    font-size: 19px;
+    color: var(--fg);
+  }
+  .field .caret { height: 20px; }
+
+  .note { margin-top: 16px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; color: var(--fg-faint); }
+
+  /* ---------- switcher ---------- */
+
+  .switch { width: 480px; }
+  .switch .row { padding: 9px 12px; }
+  .switch .ctx { font-family: var(--mono); font-size: 10px; color: var(--fg-faint); margin-left: auto; letter-spacing: .06em; }
+
+  /* ---------- menu bar dot + state bar (mockup chrome) ---------- */
+
+  .statebar {
+    position: fixed;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 6px;
+    padding: 6px;
+    border-radius: 6px;
+    background: rgba(0,0,0,.8);
+    border: 1px solid var(--line);
+    z-index: 50;
+  }
+  .statebar button { font-family: var(--mono); font-size: 10.5px; padding: 6px 11px; letter-spacing: .06em; }
+  .statebar button[data-active="true"] { background: var(--fg); color: #000; border-color: var(--fg); }
+</style>
+</head>
+<body>
+
+<div class="desktop"></div>
+
+<!-- ============ 1. LIST OVERLAY (global shortcut) ============ -->
+<div class="veil" data-on="true" id="s-list">
+  <div class="sheet">
+    <div class="sheet-head">
+      <div class="list-name">Corvus — deal analysis</div>
+      <div class="list-meta">3 / 9 &nbsp;·&nbsp; ⌘K TO SWITCH</div>
+    </div>
+
+    <div class="anchor-bar">
+      <div class="anchor-tag">ANCHOR</div>
+      <div class="anchor-text">Send the current extraction to Robin</div>
+    </div>
+
+    <ul class="tree">
+      <li>
+        <div class="row" data-done="true"><span class="box"></span><span class="label">Make the analysis up to date</span></div>
+        <ul>
+          <li><div class="row" data-done="true"><span class="box"></span><span class="label">All companies correct — no unanalyzed context</span></div></li>
+          <li><div class="row" data-done="true"><span class="box"></span><span class="label">Exclude Northwind and every company <em>Sam</em> had contact with today</span></div></li>
+        </ul>
+      </li>
+      <li><div class="row"><span class="box"></span><span class="label">Review the analysis draft in Notion</span></div></li>
+      <li><div class="row" data-sel="true"><span class="box"></span><span class="label">Send the current extraction to <em>Robin</em></span></div></li>
+      <li>
+        <div class="row"><span class="box"></span><span class="label"><em>Robin</em> then:</span></div>
+        <ul>
+          <li><div class="row"><span class="box"></span><span class="label">Sends it to <em>Sam</em> for review</span></div></li>
+          <li><div class="row"><span class="box"></span><span class="label">Asks <em>Nadia</em> if she has context on the deals</span></div></li>
+          <li>
+            <div class="row"><span class="box"></span><span class="label">Asks Sam for a to-do list we can see</span></div>
+            <ul>
+              <li><div class="row"><span class="box"></span><span class="label">Bench Sam's existing list</span></div></li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+    </ul>
+
+    <div class="keys">
+      <span>↑↓ / WS &nbsp;MOVE</span>
+      <span>SPACE &nbsp;DONE</span>
+      <span>↵ &nbsp;EDIT</span>
+      <span>⇥ &nbsp;INDENT</span>
+      <span>N &nbsp;NEW</span>
+      <span>A &nbsp;SET ANCHOR</span>
+      <span>ESC &nbsp;CLOSE</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 2. EDIT IN PLACE ============ -->
+<div class="veil" id="s-edit">
+  <div class="sheet">
+    <div class="sheet-head">
+      <div class="list-name">Corvus — deal analysis</div>
+      <div class="list-meta">3 / 9 &nbsp;·&nbsp; EDITING</div>
+    </div>
+
+    <div class="anchor-bar">
+      <div class="anchor-tag">ANCHOR</div>
+      <div class="anchor-text">Send the current extraction to Robin</div>
+    </div>
+
+    <ul class="tree">
+      <li><div class="row" data-done="true"><span class="box"></span><span class="label">Make the analysis up to date</span></div></li>
+      <li><div class="row"><span class="box"></span><span class="label">Review the analysis draft in Notion</span></div></li>
+      <li><div class="row" data-sel="true"><span class="box"></span><span class="label edit">Send the extraction to Robin — v3, with the Northwind rows removed<span class="caret"></span></span></div></li>
+      <li><div class="row"><span class="box"></span><span class="label"><em>Robin</em> then:</span></div></li>
+    </ul>
+
+    <div class="proposal">
+      <span>Anchr saw the Notion draft open for 20 min. Check off <b>Review the analysis draft in Notion</b>?</span>
+      <span style="font-family:var(--mono);font-size:10.5px;white-space:nowrap;">⌥↵ YES &nbsp; ⌫ NO</span>
+    </div>
+
+    <div class="keys">
+      <span>↵ &nbsp;SAVE</span>
+      <span>ESC &nbsp;CANCEL</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 3. INTERVENTION ============ -->
+<div class="veil" data-heavy="true" id="s-ask">
+  <div class="ask">
+    <div class="seen">YOUTUBE &nbsp;·&nbsp; 4 MIN</div>
+    <div class="echo"><span>ANCHOR</span><span>Send the current extraction to Robin</span></div>
+    <h1>Still this?</h1>
+    <div class="answers">
+      <button class="primary">Back to it</button>
+      <button>Go smaller</button>
+      <button>New anchor</button>
+    </div>
+    <div class="note">1 &nbsp;·&nbsp; 2 &nbsp;·&nbsp; 3 &nbsp;&nbsp;&nbsp; NO ESC</div>
+  </div>
+</div>
+
+<!-- ============ 4. GO SMALLER ============ -->
+<div class="veil" data-heavy="true" id="s-smaller">
+  <div class="ask">
+    <div class="seen">ANCHR &nbsp;·&nbsp; SUGGESTED</div>
+    <div class="echo"><span>WAS</span><span>Send the current extraction to Robin</span></div>
+    <h1>What part of it, right now?</h1>
+    <div class="field">Export the v3 sheet as CSV<span class="caret"></span></div>
+    <div class="answers">
+      <button class="primary">Set anchor</button>
+      <button>Keep the old one</button>
+    </div>
+    <div class="note">↵ SET &nbsp;·&nbsp; THE NEW ANCHOR IS WRITTEN UNDER THE OLD ONE</div>
+  </div>
+</div>
+
+<!-- ============ 5. LIST SWITCHER ============ -->
+<div class="veil" id="s-switch">
+  <div class="sheet switch">
+    <div class="sheet-head">
+      <div class="list-name">Lists</div>
+      <div class="list-meta">⌘K</div>
+    </div>
+    <ul class="tree" style="margin-top:14px">
+      <li><div class="row" data-sel="true"><span class="box" style="border:0"></span><span class="label">Corvus — deal analysis</span><span class="ctx">CONTEXT 1.2K</span></div></li>
+      <li><div class="row"><span class="box" style="border:0"></span><span class="label">Anchr</span><span class="ctx">CONTEXT 0.8K</span></div></li>
+      <li><div class="row"><span class="box" style="border:0"></span><span class="label">Uni — Statistik</span><span class="ctx">NO CONTEXT</span></div></li>
+      <li><div class="row"><span class="box" style="border:0"></span><span class="label">Haushalt</span><span class="ctx">CONTEXT 0.3K</span></div></li>
+    </ul>
+    <div class="keys">
+      <span>↑↓ &nbsp;MOVE</span>
+      <span>↵ &nbsp;OPEN</span>
+      <span>C &nbsp;EDIT CONTEXT</span>
+      <span>N &nbsp;NEW LIST</span>
+      <span>ESC &nbsp;BACK</span>
+    </div>
+  </div>
+</div>
+
+<div class="statebar">
+  <button data-go="s-list" data-active="true">LIST</button>
+  <button data-go="s-edit">EDIT</button>
+  <button data-go="s-ask">INTERVENTION</button>
+  <button data-go="s-smaller">SMALLER</button>
+  <button data-go="s-switch">SWITCHER</button>
+</div>
+
+<script>
+  const bar = document.querySelector('.statebar');
+  bar.addEventListener('click', e => {
+    const b = e.target.closest('button[data-go]');
+    if (!b) return;
+    show(b.dataset.go);
+  });
+
+  function show(id) {
+    document.querySelectorAll('.veil').forEach(v => v.dataset.on = String(v.id === id));
+    bar.querySelectorAll('button').forEach(b => b.dataset.active = String(b.dataset.go === id));
+  }
+
+  // #s-ask etc. opens one state directly — used by the snapshot script
+  if (location.hash.length > 1 && document.getElementById(location.hash.slice(1))) {
+    show(location.hash.slice(1));
+  }
+
+  // 1-5 switches states, for looking at them fast
+  addEventListener('keydown', e => {
+    const i = Number(e.key) - 1;
+    const b = bar.querySelectorAll('button')[i];
+    if (b) show(b.dataset.go);
+  });
+</script>
+</body>
+</html>
