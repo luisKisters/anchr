@@ -1,0 +1,17 @@
+EXPECT: on_task
+NAME: obviously on task — the extraction sheet
+ANCHOR: Send the current extraction to Robin
+PARENT CHAIN: (top level)
+PROJECT CONTEXT: Deal analysis for Corvus. Robin reviews, Sam owns the accounts. Notion holds the draft, the extraction lives in a Google Sheet.
+OPEN ITEMS:
+- [ ] Review the analysis draft in Notion
+- [ ] Send the current extraction to Robin
+
+OBSERVATION:
+Window: Corvus deal extraction v3 - Google Sheets - Google Chrome
+ Group: Corvus deal extraction v3
+  StaticText: Company | Deal stage | Last contact | Analyzed
+  StaticText: Northwind | Closed lost | 2026-07-14 | no
+  StaticText: Halden AG | Negotiation | 2026-08-02 | yes
+  Button: Share
+  StaticText: 148 rows

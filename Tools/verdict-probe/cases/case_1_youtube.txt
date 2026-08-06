@@ -1,0 +1,21 @@
+EXPECT: off_task
+NAME: plain drift — unrelated YouTube video
+ANCHOR: Send the current extraction to Robin
+PARENT CHAIN: (top level)
+PROJECT CONTEXT: Deal analysis for Corvus. Robin reviews, Sam owns the accounts. Notion holds the draft, the extraction lives in a Google Sheet.
+OPEN ITEMS:
+- [ ] Review the analysis draft in Notion
+- [ ] Send the current extraction to Robin
+- [ ] Robin then:
+  - [ ] Sends it to Sam for review
+
+OBSERVATION:
+Window: I Built a Gaming PC in a Fish Tank - YouTube - Google Chrome
+ Group: YouTube
+  Button: Skip Ads
+  Heading: I Built a Gaming PC in a Fish Tank
+  StaticText: BuildLab | 2.1M views | 3 days ago
+  Button: Subscribe
+  StaticText: 4:12 / 18:03
+  Link: Up next: I Cooled a CPU With Liquid Nitrogen
+  Link: 10 PC Builds That Should Not Exist

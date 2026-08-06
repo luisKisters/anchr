@@ -1,0 +1,16 @@
+EXPECT: on_task
+NAME: HARD — YouTube that genuinely is the task
+ANCHOR: Understand how the meditation-style work loop should feel
+PARENT CHAIN: Anchr V1 > Understand how the meditation-style work loop should feel
+PROJECT CONTEXT: Building Anchr. The core idea comes from a YouTube talk about working the way you meditate: when you notice you drifted, you make the task smaller instead of scolding yourself.
+OPEN ITEMS:
+- [ ] Understand how the meditation-style work loop should feel
+- [ ] Write the intervention copy
+
+OBSERVATION:
+Window: Work like you meditate - the smallest next step - YouTube - Google Chrome
+ Group: YouTube
+  Heading: Work like you meditate - the smallest next step
+  StaticText: 12:40 / 22:15
+  StaticText: ...when you notice your attention left the task, you do not restart. You make the task one level more specific...
+  Link: Up next: Deep work is not a personality

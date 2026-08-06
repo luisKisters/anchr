@@ -1,0 +1,16 @@
+EXPECT: unclear
+NAME: HARD — a work chat that is not the anchor
+ANCHOR: Write the email with the travel cost report
+PARENT CHAIN: Admin > Write the email with the travel cost report
+PROJECT CONTEXT: Personal admin. The travel cost form goes to the university office. Nothing here involves Slack.
+OPEN ITEMS:
+- [ ] Write the email with the travel cost report
+- [ ] Find the receipt
+
+OBSERVATION:
+Window: general - Corvus - Slack
+ Group: general
+  StaticText: Robin: can you take a look at the Sam deals before standup
+  StaticText: Nadia: I added the notes from Tuesday
+  StaticText: you: on it
+  TextArea: Message #general
