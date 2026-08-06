@@ -1,0 +1,17 @@
+EXPECT: on_task
+NAME: HARD — documentation that reads like drift
+ANCHOR: Build the accessibility probe
+PARENT CHAIN: Anchr V1 > Watching layer > Build the accessibility probe
+PROJECT CONTEXT: Building Anchr, a macOS focus app in Swift. It reads the frontmost window through the Accessibility API instead of taking screenshots.
+OPEN ITEMS:
+- [ ] Build the accessibility probe
+- [ ] Measure text yield per app
+
+OBSERVATION:
+Window: AXUIElement | Apple Developer Documentation - Safari
+ Group: Developer Documentation
+  Heading: AXUIElementCopyAttributeValue(_:_:_:)
+  StaticText: Returns the value of an accessibility object's attribute.
+  StaticText: func AXUIElementCopyAttributeValue(_ element: AXUIElement, _ attribute: CFString, _ value: UnsafeMutablePointer<CFTypeRef?>) -> AXError
+  Link: kAXChildrenAttribute
+  Link: AXObserver

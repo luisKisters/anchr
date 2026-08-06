@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdict", "evidence", "smaller_step"],
+  "properties": {
+    "verdict": { "type": "string", "enum": ["on_task", "unclear", "off_task"] },
+    "evidence": { "type": "string" },
+    "smaller_step": { "type": "string" }
+  }
+}

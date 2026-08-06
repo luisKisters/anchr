@@ -1,0 +1,16 @@
+EXPECT: unclear
+NAME: HARD — a terminal that could be anything
+ANCHOR: Send the current extraction to Lucas
+PARENT CHAIN: (top level)
+PROJECT CONTEXT: Deal analysis for Levity. Lucas reviews, Gero owns the accounts. The extraction lives in a Google Sheet.
+OPEN ITEMS:
+- [ ] Send the current extraction to Lucas
+
+OBSERVATION:
+Window: kisters@Mac — -zsh — 120x30
+ TextArea: $ cd ~/downloads
+$ ls -la
+total 4816
+-rw-r--r--  1 kisters  staff   184320 Aug  6 11:02 export.csv
+$ head -2 export.csv
+$
