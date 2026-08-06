@@ -104,11 +104,18 @@ The agent must never claim a slice works because the code compiles.
   sequence driven through the real scheduler, policy and store with
   `ScriptedClassifier` and a fake focus source. It asserts exactly one
   intervention fired and exactly one child item was appended to `list.md`.
-- **The UI is proven by design snapshots**, rendered in-process to PNG by a
-  `--design-snapshot <state>` launch flag and pixel-diffed against baselines
-  produced from `design/mockups/v2/interactive.html` via NoteTakr's
-  `Tools/design/mockup-shot.mjs`. This needs no screen recording permission and no
-  visible display.
+- **UI behaviour is proven in Kit, not in SwiftUI.** Every key press goes through
+  `AnchrKit/ListEditor.swift`, a pure reducer of `(state, key) -> state`. The
+  SwiftUI views own no editing logic; they render the reducer's state and forward
+  key events. So navigation, editing, indent, delete and anchor changes are
+  table-tested with no screen.
+- **UI appearance is proven by design snapshots**, rendered in-process to PNG by a
+  `--design-snapshot <state>` launch flag. Baselines are **self-baselined and
+  approved once by the user**: the first run writes the PNG, the user looks at it
+  next to `design/mockups/v2/interactive.html` and approves, and from then on the
+  pixel diff catches regressions. The HTML prototype is the reference a human or
+  agent compares against — it is never diffed against the app automatically,
+  because SwiftUI and a browser will never rasterize identically.
 - **Anything needing the real Accessibility permission or the real `codex` CLI is
   opt-in and best effort.** `ANCHR_LIVE_CODEX=1` and `ANCHR_LIVE_AX=1` gate those
   tests. If the permission is missing, the task must record the exact blocker in
@@ -281,13 +288,18 @@ as a small tool, not as throwaway code.
       the ⌥Space global hotkey.
 - [ ] Implement `ListView` matching the prototype: header, anchor bar, the tree
       with indent, selection, done state, and the key hint row.
-- [ ] Bind the keys exactly as in the prototype: `↑↓`/`WS` move, `space` done,
-      `↵` edit, `⇥`/`⇧⇥` indent and unindent with children following, `N` new,
-      `A` set anchor, `⌘K` lists, `esc` close, saving an empty item deletes it.
+- [ ] Implement `AnchrKit/ListEditor.swift` first: a pure reducer of
+      `(state, key) -> state` covering `↑↓`/`WS` move, `space` done, `↵` edit,
+      `⇥`/`⇧⇥` indent and unindent with children following, `N` new, `A` set
+      anchor, `esc` close, and "saving an empty item deletes it". The SwiftUI view
+      must contain no editing logic — it renders the state and forwards keys.
+- [ ] Table-test the reducer over key sequences, including: unindent at depth 0 is
+      a no-op, indent deeper than predecessor + 1 is a no-op, deleting the last
+      item leaves a valid selection, and a parent's children follow its indent.
 - [ ] Add the `--design-snapshot <state>` launch flag that renders one named state
-      to PNG in process, and baseline `overlay/list`.
-- [ ] Verify by rendering the snapshot and pixel-diffing against the baseline
-      captured from the prototype, then run `scripts/verify.sh`.
+      to PNG in process, and write the first `overlay/list` baseline.
+- [ ] Show that baseline to the user next to the prototype for approval, then run
+      `cd AnchrKit && swift test` and `scripts/verify.sh`.
 
 ### Task 11: Create From Paste, and the Switcher
 
@@ -299,8 +311,8 @@ as a small tool, not as throwaway code.
       `esc` back.
 - [ ] Test in Kit that creating a list from a pasted plan produces the expected
       `list.md` bytes; test in the app layer only what the snapshots cover.
-- [ ] Add design snapshots `overlay/create` and `overlay/switcher`, pixel-diff
-      them, then run `scripts/verify.sh`.
+- [ ] Add design snapshots `overlay/create` and `overlay/switcher`, get the
+      baselines approved once, then run `scripts/verify.sh`.
 
 ### Task 12: The Intervention
 
@@ -311,8 +323,9 @@ as a small tool, not as throwaway code.
 - [ ] "Go smaller" pre-fills the model's `smaller_step`, `↵` writes it as a child
       item under the anchor and moves the anchor there. "New anchor" asks what you
       are doing instead and writes that as a sibling. "Back to it" only snoozes.
-- [ ] Add design snapshots `intervention/ask` and `intervention/smaller`, pixel-diff
-      them, then run `scripts/e2e-smoke.sh` and `scripts/verify.sh`.
+- [ ] Add design snapshots `intervention/ask` and `intervention/smaller`, get the
+      baselines approved once, then run `scripts/e2e-smoke.sh` and
+      `scripts/verify.sh`.
 
 ### Task 13: Onboarding
 
@@ -323,8 +336,8 @@ as a small tool, not as throwaway code.
       the first plan through `CreateListView`.
 - [ ] If `codex` is missing or unauthenticated, say exactly what to run. Do not
       build a fallback path.
-- [ ] Add design snapshot `onboarding/permission`, pixel-diff it, then run
-      `scripts/verify.sh`.
+- [ ] Add design snapshot `onboarding/permission`, get the baseline approved once,
+      then run `scripts/verify.sh`.
 
 ## Phase 6: Does It Actually Work
 
