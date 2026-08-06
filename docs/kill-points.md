@@ -50,15 +50,26 @@ better signal than the verdict column.
 
 ---
 
-## Kill point 1 — do real apps give up enough text?
+## Kill point 1 — do real apps give up enough text? (2026-08-06)
 
-**Result: blocked, not run.**
+**Result: passed, with one accepted limitation. Full table in
+`docs/ax-coverage.md`.**
 
-`Tools/ax-probe` builds and runs, but `AXIsProcessTrusted()` returns false. The
-responsible process for an agent shell here is `Emdash Dev.app`, so that app
-needs a tick in System Settings → Privacy & Security → Accessibility before any
-measurement is possible.
+Thirteen apps measured with `Tools/ax-probe`. Safari gives the whole page
+(29 210 chars), Electron apps give their content once the flag has been set and
+read a second time, and Chromium browsers give **only the tab title**.
 
-Nothing about the text-only design is verified until this runs against Chrome,
-Safari, VS Code, Terminal, Slack, Notion, Obsidian and Figma. See
-`docs/blockers.md`.
+The limitation is the one that mattered, because browsers are where drift
+happens. So it was tested directly: two more classification cases built from the
+real Chrome observation, containing nothing but the tab title and the toolbar.
+
+| Case | Expected | Got |
+|---|---|---|
+| Chrome title only, a YouTube video, drifting | off_task | off_task |
+| Chrome title only, a Stack Overflow page that is the task | on_task | on_task |
+
+Both correct. A tab title names the video, the repo or the document, and that is
+enough for the judgement. Chrome's poverty does not kill the design.
+
+Kill point 2 above used richer, hand-written observations. These two used a real,
+poor one. Together they cover both ends.

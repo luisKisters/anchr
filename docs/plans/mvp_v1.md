@@ -70,11 +70,14 @@ Locked. Do not reopen these while executing.
   testable with no network and no screen.
 - **The anchor is an index into the list**, not a separate object. "Go smaller"
   inserts a child item under the anchor and moves the anchor to it.
-- **Electron and Chrome accessibility:** set `AXManualAccessibility = true` on the
-  application element before walking the tree. That is the documented switch that
-  makes Chrome, VS Code, Slack and Notion build their renderer tree. If the tree
-  is still under ~120 useful characters, fall back to app name plus window title
-  and let the model answer `unclear`. **No per-app special cases beyond this.**
+- **Accessibility yield, measured — see `docs/ax-coverage.md`.** Set
+  `AXManualAccessibility` and `AXEnhancedUserInterface` on the app element when it
+  becomes frontmost, then read the tree on the **next** check, never in the same
+  call: Electron apps build the tree asynchronously and returned 91 chars on the
+  first read and 2043 one second later. Chromium browsers expose no page content
+  at all, no matter which flag is set; the tab title is the observation there, and
+  that was verified to be enough. Safari exposes the whole page. **No per-app
+  special cases beyond the flags and the second read.**
 - **Observation tiers:** free layer is frontmost app plus focused window title via
   `NSWorkspace` notifications and an `AXObserver` — push, no polling. Model layer
   is the accessibility text snapshot, capped at 3000 characters.
@@ -160,14 +163,14 @@ as a small tool, not as throwaway code.
       character count.
 - [ ] Reuse this walker from `AnchrCore/AXSnapshot.swift` later — the probe must
       call the same function, not a copy.
-- [ ] Run it against Chrome (a YouTube page), Safari, VS Code, Terminal, Slack,
-      Notion, Obsidian and Figma. Record character counts and a verdict of
-      usable / thin / empty per app in `docs/ax-coverage.md`.
+- [ ] The measurement is already done — see `docs/ax-coverage.md`. Re-run the
+      probe only to confirm the numbers still hold after the walker moves into
+      `AXSnapshot.swift`, and update the table if they changed.
+- [ ] Implement the second-read rule proven there: set the flags on app
+      activation, read the tree on the next check.
 - [ ] If the Accessibility permission is not granted, stop, write the exact
       blocker to `docs/blockers.md`, and ask the user to grant it in
       System Settings → Privacy & Security → Accessibility. Do not fake results.
-- [ ] Record the conclusion at the top of `docs/ax-coverage.md`: does text-only
-      hold, or do some apps only ever give a window title?
 - [ ] Run `scripts/verify.sh`.
 
 ## Phase 2: The List
