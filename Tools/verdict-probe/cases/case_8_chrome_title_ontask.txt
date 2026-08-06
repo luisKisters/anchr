@@ -1,0 +1,15 @@
+EXPECT: on_task
+NAME: HARD — Chrome title only, and it IS the task
+ANCHOR: Build the accessibility probe
+PARENT CHAIN: Anchr V1 > Watching layer > Build the accessibility probe
+PROJECT CONTEXT: Building Anchr, a macOS focus app in Swift. It reads the frontmost window through the Accessibility API instead of taking screenshots.
+OPEN ITEMS:
+- [ ] Build the accessibility probe
+- [ ] Measure text yield per app
+
+OBSERVATION:
+Window: macos - How to get the accessibility tree of another application - Stack Overflow - Google Chrome
+ Group: macos - How to get the accessibility tree of another application - Stack Overflow - Google Chrome
+       Button: Back
+        TextField: stackoverflow.com/questions/12345/axuielement-tree | Address and search bar
+       PopUpButton: Chrome

@@ -67,7 +67,9 @@ guard let app, let pid = Optional(app.processIdentifier) else {
 let axApp = AXUIElementCreateApplication(pid)
 // the switch that makes Chrome / Electron build their renderer tree
 AXUIElementSetAttributeValue(axApp, "AXManualAccessibility" as CFString, kCFBooleanTrue)
-usleep(400_000)
+// Chrome and other Chromium shells watch this one instead
+AXUIElementSetAttributeValue(axApp, "AXEnhancedUserInterface" as CFString, kCFBooleanTrue)
+usleep(1_200_000)
 
 var target = axApp
 if let w = attr(axApp, kAXFocusedWindowAttribute as String) {

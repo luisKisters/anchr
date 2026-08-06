@@ -1,0 +1,17 @@
+EXPECT: off_task
+NAME: HARD — Chrome gives only the tab title (drift)
+ANCHOR: Send the current extraction to Robin
+PARENT CHAIN: (top level)
+PROJECT CONTEXT: Deal analysis for Corvus. Robin reviews, Sam owns the accounts. Notion holds the draft, the extraction lives in a Google Sheet.
+OPEN ITEMS:
+- [ ] Review the analysis draft in Notion
+- [ ] Send the current extraction to Robin
+
+OBSERVATION:
+Window: Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster) - YouTube - Google Chrome
+ Group: Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster) - YouTube - Google Chrome
+       Button: Back
+       Button: Reload
+        TextField: youtube.com/watch?v=dQw4w9WgXcQ | Address and search bar
+       Button: Sign In to Chrome?
+       PopUpButton: Chrome
