@@ -1,6 +1,7 @@
 # Accessibility text yield per app
 
-Measured 2026-08-06 with `Tools/ax-probe` on this machine.
+Measured 2026-08-06 with `Tools/ax-probe` on this machine. The shared
+`AnchrCore/AXSnapshot.swift` walker was confirmed again on 2026-08-10.
 Method: set `AXManualAccessibility` and `AXEnhancedUserInterface` on the app
 element, walk the focused window, keep role + title + value + description, drop
 nodes with no text of their own.
@@ -18,7 +19,7 @@ the result that decides this.
 |---|---|---|
 | Safari | 29 210 | **Yes** — full web area, headings, body text |
 | Spotify | 44 906 | Yes |
-| Emdash Dev (Electron) | 38 513 | Yes |
+| Emdash Dev (Electron) | 8 348 on shared-walker recheck; 38 513 before | Yes |
 | WhatsApp | 6 170 | Yes |
 | T3 Code (VS Code fork) | 4 361 | UI and project name only, no editor text |
 | Obsidian (Electron) | 2 043 | Yes — note content, **on the second read** |
@@ -56,9 +57,8 @@ the result that decides this.
 ## Reproduce
 
 ```
-swiftc -O -o /tmp/axprobe Tools/ax-probe/main.swift
-/tmp/axprobe --front
-/tmp/axprobe com.apple.Safari
+swift run ax-probe --front
+swift run ax-probe com.apple.Safari
 ```
 
 Needs Accessibility permission for the process that runs it.
