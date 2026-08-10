@@ -1,0 +1,10 @@
+- [x] Make the analysis up to date
+  - [x] All companies correct — no unanalyzed context
+  - [x] Exclude Northwind and every company Sam had contact with today
+- [ ] Review the analysis draft in Notion
+- [ ] Send the current extraction to Robin
+- [ ] Robin then:
+  - [ ] Sends it to Sam for review
+  - [ ] Asks Nadia if she has context on the deals
+  - [ ] Asks Sam for a to-do list we can see
+    - [ ] Bench Sam's existing list
