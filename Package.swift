@@ -37,6 +37,7 @@ let package = Package(
             dependencies: [
                 "AnchrCore",
                 .product(name: "AnchrKit", package: "AnchrKit"),
+                .product(name: "AnchrKitTestSupport", package: "AnchrKit"),
             ],
             path: "Tests/AnchrCoreTests"
         ),

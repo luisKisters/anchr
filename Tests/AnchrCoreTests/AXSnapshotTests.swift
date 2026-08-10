@@ -1,6 +1,8 @@
 import XCTest
+import AppKit
 @testable import AnchrCore
 
+@MainActor
 final class AXSnapshotTests: XCTestCase {
     func testFlattenerDropsDecorativeNodesDeduplicatesTextAndCapsOutput() {
         let tree = AXSnapshotNode(
@@ -31,6 +33,48 @@ final class AXSnapshotTests: XCTestCase {
         XCTAssertEqual(result.visitedNodeCount, 4)
         XCTAssertEqual(result.lineCount, 3)
         XCTAssertEqual(result.usefulCharacterCount, 69)
+    }
+
+    func testFlattenerBoundsWideAndDeepTrees() {
+        var deep = AXSnapshotNode(role: "AXStaticText", value: "too deep")
+        for depth in (0..<8).reversed() {
+            deep = AXSnapshotNode(
+                role: "AXGroup",
+                value: "depth-\(depth)",
+                children: [deep]
+            )
+        }
+        let wide = AXSnapshotNode(
+            role: "AXWindow",
+            title: "Bounded",
+            children: (0..<20).map {
+                AXSnapshotNode(role: "AXStaticText", value: "item-\($0)")
+            } + [deep]
+        )
+
+        let result = AXSnapshotWalker.flatten(
+            wide,
+            maximumCharacters: 80,
+            maximumNodes: 5,
+            maximumDepth: 3
+        )
+
+        XCTAssertLessThanOrEqual(result.text.count, 80)
+        XCTAssertEqual(result.visitedNodeCount, 5)
+        XCTAssertFalse(result.text.contains("too deep"))
+    }
+
+    func testPermissionStatusAndSettingsEntryPointAreExplicit() {
+        XCTAssertEqual(AccessibilityPermission.status(isTrusted: false), .notGranted)
+        XCTAssertEqual(AccessibilityPermission.status(isTrusted: true), .granted)
+        XCTAssertEqual(
+            AccessibilityPermission.systemSettingsURL.absoluteString,
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+        )
+        XCTAssertEqual(
+            AXSnapshotError.notTrusted.errorDescription,
+            "Accessibility permission is not granted"
+        )
     }
 
     func testActivationPreparesFlagsAndFirstLaterCheckReadsSnapshot() throws {
@@ -77,6 +121,22 @@ final class AXSnapshotTests: XCTestCase {
         access.failingPreparationProcessIdentifier = nil
         XCTAssertNil(try reader.snapshotForCheck(processIdentifier: 42))
         XCTAssertEqual(access.events, [.prepare(42), .prepare(7), .prepare(42)])
+    }
+
+    func testLiveSnapshotWhenExplicitlyEnabled() throws {
+        guard ProcessInfo.processInfo.environment["ANCHR_LIVE_AX"] == "1" else {
+            throw XCTSkip("Set ANCHR_LIVE_AX=1 to run the live Accessibility test")
+        }
+        guard AccessibilityPermission.currentStatus == .granted else {
+            XCTFail("Accessibility permission is not granted")
+            return
+        }
+        let application = try XCTUnwrap(NSWorkspace.shared.frontmostApplication)
+        let result = try AXSnapshotWalker.snapshot(
+            processIdentifier: application.processIdentifier
+        )
+
+        XCTAssertFalse(result.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 }
 

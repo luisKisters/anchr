@@ -191,13 +191,17 @@ public enum AXSnapshotWalker {
         }
         remainingNodes -= 1
 
-        let children: [AXSnapshotNode]
-        if let elements = attribute(element, kAXChildrenAttribute as String) as? [AXUIElement] {
-            children = elements.map {
-                makeNode(from: $0, depth: depth + 1, remainingNodes: &remainingNodes)
+        var children: [AXSnapshotNode] = []
+        if depth < defaultMaximumDepth,
+           let elements = attribute(element, kAXChildrenAttribute as String) as? [AXUIElement] {
+            for child in elements {
+                guard remainingNodes > 0 else { break }
+                children.append(makeNode(
+                    from: child,
+                    depth: depth + 1,
+                    remainingNodes: &remainingNodes
+                ))
             }
-        } else {
-            children = []
         }
 
         return AXSnapshotNode(
@@ -246,7 +250,14 @@ private final class LiveAXSnapshotAccess: AXSnapshotAccess {
     }
 }
 
-public final class DelayedAXSnapshotReader {
+@MainActor
+public protocol ObservationSnapshotting: AnyObject {
+    func applicationDidBecomeFrontmost(processIdentifier: Int32) throws
+    func snapshotForCheck(processIdentifier: Int32) throws -> AXSnapshotResult?
+}
+
+@MainActor
+public final class DelayedAXSnapshotReader: ObservationSnapshotting {
     private let access: AXSnapshotAccess
     private var preparedProcessIdentifier: Int32?
 
