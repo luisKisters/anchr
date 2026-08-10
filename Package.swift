@@ -34,7 +34,10 @@ let package = Package(
         ),
         .testTarget(
             name: "AnchrCoreTests",
-            dependencies: ["AnchrCore"],
+            dependencies: [
+                "AnchrCore",
+                .product(name: "AnchrKit", package: "AnchrKit"),
+            ],
             path: "Tests/AnchrCoreTests"
         ),
     ]

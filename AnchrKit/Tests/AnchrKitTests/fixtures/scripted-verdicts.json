@@ -1,0 +1,12 @@
+[
+  {
+    "verdict": "on_task",
+    "evidence": "The test window is open.",
+    "smaller_step": "Run the focused test"
+  },
+  {
+    "verdict": "off_task",
+    "evidence": "An unrelated window is open.",
+    "smaller_step": "Return to the focused test"
+  }
+]
