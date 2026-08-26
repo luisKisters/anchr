@@ -18,6 +18,20 @@ public enum ListStoreError: Error, Equatable {
     case noAnchor
 }
 
+public struct ListSummary: Equatable, Sendable {
+    public let slug: String
+    public let name: String
+    public let openItemCount: Int
+    public let hasContext: Bool
+
+    public init(slug: String, name: String, openItemCount: Int, hasContext: Bool) {
+        self.slug = slug
+        self.name = name
+        self.openItemCount = openItemCount
+        self.hasContext = hasContext
+    }
+}
+
 public struct ListStore: Sendable {
     public let rootURL: URL
 
@@ -53,6 +67,7 @@ public struct ListStore: Sendable {
 
         let directory = listURL(slug: slug)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        try write(name.trimmingCharacters(in: .whitespacesAndNewlines), to: directory.appendingPathComponent("name.txt"))
         try write(TodoList(items: items).markdown, to: directory.appendingPathComponent("list.md"))
         try write(context, to: directory.appendingPathComponent("context.md"))
 
@@ -62,6 +77,16 @@ public struct ListStore: Sendable {
         }
         try saveState(state)
         return slug
+    }
+
+    @discardableResult
+    public func createFromPaste(name: String, pasted: String, context: String) throws -> String {
+        let items = TodoList.normalize(pasted: pasted)
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedName = trimmedName.isEmpty
+            ? String(items.first?.text.prefix(40) ?? "")
+            : trimmedName
+        return try create(name: resolvedName, items: items, context: context)
     }
 
     public func listSlugs() throws -> [String] {
@@ -78,6 +103,28 @@ public struct ListStore: Sendable {
             else { return nil }
             return url.lastPathComponent
         }.sorted()
+    }
+
+    public func listSummaries() throws -> [ListSummary] {
+        try listSlugs().map { slug in
+            let list = try loadList(slug: slug)
+            let context = try loadContext(slug: slug)
+            let nameURL = listURL(slug: slug).appendingPathComponent("name.txt")
+            let storedName = try? String(contentsOf: nameURL, encoding: .utf8)
+            let fallbackName = slug
+                .split(separator: "-")
+                .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+                .joined(separator: " ")
+            let name = storedName?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nonEmpty ?? fallbackName
+            return ListSummary(
+                slug: slug,
+                name: name,
+                openItemCount: list.items.filter { !$0.done }.count,
+                hasContext: !context.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            )
+        }
     }
 
     public func switchTo(slug: String) throws {
@@ -141,6 +188,12 @@ public struct ListStore: Sendable {
         try data.write(to: stateURL, options: .atomic)
     }
 
+    public func snooze(until deadline: Date) throws {
+        var state = try loadState()
+        state.snoozeDeadline = deadline
+        try saveState(state)
+    }
+
     @discardableResult
     public func goSmaller(text: String) throws -> Anchor {
         var state = try loadState()
@@ -150,6 +203,21 @@ public struct ListStore: Sendable {
         guard var anchor = Anchor(index: anchorIndex, in: list) else { throw AnchorError.invalidIndex }
 
         try anchor.goSmaller(text: text, in: &list)
+        try saveList(list, slug: slug)
+        state.anchorIndex = anchor.index
+        try saveState(state)
+        return anchor
+    }
+
+    @discardableResult
+    public func setNewAnchor(text: String) throws -> Anchor {
+        var state = try loadState()
+        guard let slug = state.activeListSlug else { throw ListStoreError.noActiveList }
+        guard let anchorIndex = state.anchorIndex else { throw ListStoreError.noAnchor }
+        var list = try loadList(slug: slug)
+        guard var anchor = Anchor(index: anchorIndex, in: list) else { throw AnchorError.invalidIndex }
+
+        try anchor.setNewSibling(text: text, in: &list)
         try saveList(list, slug: slug)
         state.anchorIndex = anchor.index
         try saveState(state)
@@ -196,4 +264,10 @@ public struct ListStore: Sendable {
         decoder.dateDecodingStrategy = .iso8601
         return decoder
     }()
+}
+
+private extension String {
+    var nonEmpty: String? {
+        isEmpty ? nil : self
+    }
 }

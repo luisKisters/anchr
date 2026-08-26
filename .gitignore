@@ -1,2 +1,11 @@
 .build/
 .swiftpm/
+
+# Generated from project.yml by scripts/generate-project.sh. Never hand-edited,
+# so there is nothing to review in a diff of it.
+Anchr.xcodeproj/
+build/Anchr-Info.plist
+
+# The OpenRouter key lives in ~/Library/Application Support/Anchr/, never here.
+openrouter-key
+*.xcresult

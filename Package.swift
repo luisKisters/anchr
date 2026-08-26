@@ -24,7 +24,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "AnchrApp",
-            dependencies: ["AnchrCore"],
+            dependencies: [
+                "AnchrCore",
+                .product(name: "AnchrKit", package: "AnchrKit"),
+            ],
             path: "AnchrApp"
         ),
         .executableTarget(

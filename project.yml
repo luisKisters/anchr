@@ -1,0 +1,89 @@
+# Generated into Anchr.xcodeproj by `scripts/generate-project.sh` (XcodeGen).
+#
+# The Swift package stays the build of record: `swift build` and `swift test` compile
+# the same files. This project exists for one reason only — XCUITest targets cannot
+# live in a Swift package. The project is generated, never hand-edited, so the two
+# never drift.
+name: Anchr
+
+options:
+  bundleIdPrefix: com.anchr
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+packages:
+  # The root Swift package is the single source of truth for the library code.
+  # The project consumes its products instead of recompiling the same files, so the
+  # two builds can never drift.
+  Anchr:
+    path: .
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    # Ad-hoc, exactly like scripts/run-app.sh: no keychain, no signing dialog,
+    # so an unattended run can never be stopped by a password prompt.
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: ""
+    # Anchr reads other apps through the Accessibility API and writes to
+    # Application Support; a sandbox would break both. Switching it off for the UI
+    # test runner too is what lets the test hand the app a fixture directory —
+    # inside a container the app could never read it.
+    ENABLE_APP_SANDBOX: NO
+
+targets:
+  Anchr:
+    type: application
+    platform: macOS
+    sources:
+      - AnchrApp
+    dependencies:
+      - package: Anchr
+        product: AnchrCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.anchr.app
+        PRODUCT_NAME: Anchr
+    info:
+      path: build/Anchr-Info.plist
+      properties:
+        CFBundleName: Anchr
+        CFBundleDisplayName: Anchr
+        CFBundleShortVersionString: "0.1"
+        CFBundleVersion: "1"
+        # Menu bar only: no Dock icon, no main window.
+        LSUIElement: true
+        NSAccessibilityUsageDescription: >-
+          Anchr reads the text of the window in front to tell whether it matches your
+          current task. It never takes pictures of your screen.
+
+  AnchrUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - AnchrUITests
+    dependencies:
+      - target: Anchr
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.anchr.uitests
+        TEST_TARGET_NAME: Anchr
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  Anchr:
+    build:
+      targets:
+        Anchr: all
+        AnchrUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      testPlans:
+        - path: TestPlans/UISmoke.xctestplan
+          defaultPlan: true

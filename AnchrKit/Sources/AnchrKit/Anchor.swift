@@ -51,4 +51,22 @@ public struct Anchor: Equatable, Sendable {
         }
         self = newAnchor
     }
+
+    public mutating func setNewSibling(text: String, in list: inout TodoList) throws {
+        guard list.items.indices.contains(index) else { throw AnchorError.invalidIndex }
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { throw AnchorError.emptyText }
+
+        let anchorDepth = list.items[index].depth
+        var insertionIndex = index + 1
+        while insertionIndex < list.items.count, list.items[insertionIndex].depth > anchorDepth {
+            insertionIndex += 1
+        }
+
+        list.insert(Item(text: text, depth: anchorDepth, done: false), at: insertionIndex)
+        guard let newAnchor = Anchor(index: insertionIndex, in: list) else {
+            throw AnchorError.invalidIndex
+        }
+        self = newAnchor
+    }
 }

@@ -1,0 +1,28 @@
+{
+  "configurations" : [
+    {
+      "id" : "3E2A1C40-9F51-4C6E-8E2B-6D1B0F7A44C1",
+      "name" : "UI Smoke",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : false,
+    "defaultTestExecutionTimeAllowance" : 120,
+    "maximumTestExecutionTimeAllowance" : 240,
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:Anchr.xcodeproj",
+        "identifier" : "AnchrUITests",
+        "name" : "AnchrUITests"
+      }
+    }
+  ],
+  "version" : 1
+}
