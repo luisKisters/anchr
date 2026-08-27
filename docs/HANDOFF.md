@@ -1,7 +1,32 @@
-# Handoff — Anchr, 2026-08-06
+# Handoff — Anchr, 2026-08-26
 
-State: **planning and de-risking are done. No app code exists yet.**
-Next action: Task 1 of `docs/plans/mvp_v1.md`.
+State: **Phases 1 to 4 are done and committed. Phase 5 (the app) is built and its
+GUI suite is green.** Remaining: Tasks 11 to 16.
+Next action: Task 11 of `docs/plans/mvp_v1.md`.
+
+Before any unattended session run `scripts/preflight.sh`. It is currently green.
+
+## What changed on 2026-08-26
+
+**The judgement layer is OpenRouter, not Codex.** There is no ChatGPT
+subscription, and the old path was silently broken anyway: `codex exec` inherited
+`model = "gpt-5.6-sol"` from the user's global config, which that account cannot
+use, so every classification returned a 400. The seam is now one HTTPS call
+(`openai/gpt-5.6-luna` at low reasoning, strict structured output, ~3 s round
+trip). Anchr
+spawns no processes at all now.
+
+**The key** lives in 1Password as "Anchr OpenRouter API Key" and is read from
+`OPENROUTER_API_KEY` or `~/Library/Application Support/Anchr/openrouter-key`
+(0600). Never the repository — a verify gate fails on any `sk-or-` literal.
+
+**The GUI is tested with XCUITest**, after NoteTakr. `Anchr.xcodeproj` is
+generated from `project.yml` by XcodeGen and is gitignored; the Swift package
+stays the build of record. The first GUI run immediately found that the borderless
+overlay window answered `false` to `canBecomeKey`, so every key binding in the
+product was dead.
+
+**The build is done by Claude agents.** No Codex step anywhere.
 
 ---
 
@@ -88,9 +113,10 @@ statistics, branch collapsing, item reordering, model-proposed check-offs.
 
 - Accessibility permission is granted to `Emdash Dev.app`, which is the
   responsible parent process for an agent shell here. Without it `Tools/ax-probe`
-  exits `NOT_TRUSTED`.
-- `codex-cli 0.144.6` at `~/.local/bin/codex`, ChatGPT-subscription auth.
-- Swift 6.3.3. Reference project for tooling: `~/code/projects/notetakr`.
+  exits `NOT_TRUSTED`, and it also needs to run outside the default command sandbox.
+- No usable `codex` CLI and no ChatGPT subscription. Do not reintroduce either.
+- Swift 6.3.3, full Xcode, `xcodegen` 2.46. Reference project for tooling and for
+  the XCUITest boundary: `~/code/projects/notetakr`.
 
 ## History was rewritten
 
@@ -102,5 +128,7 @@ certain fix is deleting and recreating the repository.
 
 ## Next step
 
-Task 1: the Swift package skeleton, `scripts/verify.sh` with its four grep gates,
-and one green test run. Nothing else starts before that is green.
+Task 11: create-from-paste and the `⌘K` switcher, then the intervention screen and
+onboarding. Two things still need the owner and cannot be automated: approving the
+six design snapshot baselines against the prototype, and the corpus plus full
+product run in Phase 6 and 8.

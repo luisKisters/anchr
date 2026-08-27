@@ -252,7 +252,7 @@ function normalize(text) {
     let done = false;
     const box = line.match(/^\[([ xX])\]\s*/);
     if (box) { done = box[1].toLowerCase() === "x"; line = line.slice(box[0].length); }
-    line = line.replace(/\[\[([^\]|]+)(\|[^\]]+)?\]\]/g, "$1");  // strip wiki links
+    line = line.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, page, label) => label || page);  // strip wiki links
     line = line.replace(/\*\*(.+?)\*\*/g, "$1").trim();
     if (!line) continue;
 
