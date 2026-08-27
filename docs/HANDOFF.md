@@ -12,7 +12,8 @@ Before any unattended session run `scripts/preflight.sh`. It is currently green.
 subscription, and the old path was silently broken anyway: `codex exec` inherited
 `model = "gpt-5.6-sol"` from the user's global config, which that account cannot
 use, so every classification returned a 400. The seam is now one HTTPS call
-(`google/gemini-2.5-flash`, strict structured output, 1.2 s round trip). Anchr
+(`openai/gpt-5.6-luna` at low reasoning, strict structured output, ~3 s round
+trip). Anchr
 spawns no processes at all now.
 
 **The key** lives in 1Password as "Anchr OpenRouter API Key" and is read from

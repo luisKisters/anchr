@@ -28,6 +28,9 @@ public final class ObservationLoop {
     private var policyEvents: [InterventionPolicy.Event] = []
     private var lastCall: Date?
     private var isStarted = false
+    private var lastSkipReason: String?
+    private var lastFingerprint: Int?
+    private var lastVerdict: Verdict.Kind?
 
     public init(
         clock: any ObservationClock,
@@ -67,6 +70,13 @@ public final class ObservationLoop {
         schedulerEvents.append(.screenLockChanged(isLocked: isLocked, at: clock.now))
     }
 
+    /// What the person did with the last interruption. "Back to it" changes nothing about
+    /// the list, so it must not buy the same quiet as actually changing the task.
+    public func recordInterventionAnswer(_ answer: InterventionPolicy.Answer) {
+        policyEvents.append(.answered(answer, at: clock.now))
+        Log.write("intervention answered=\(answer)")
+    }
+
     public func recordAnchrFrontmost(isFrontmost: Bool) {
         schedulerEvents.append(.anchrFrontmostChanged(isFrontmost: isFrontmost, at: clock.now))
     }
@@ -74,23 +84,62 @@ public final class ObservationLoop {
     @discardableResult
     public func checkIfDue() async throws -> Verdict? {
         let now = clock.now
-        guard let context,
-              CheckScheduler.shouldCheck(events: schedulerEvents, now: now, lastCall: lastCall)
-        else { return nil }
+        guard let context else {
+            logSkip("no focus context yet (accessibility observer never fired)")
+            return nil
+        }
+        // Reading the screen is local and free, so it happens before the decision that
+        // costs money. The text itself is what tells us whether anything is worth judging.
+        guard CheckScheduler.shouldSample(events: schedulerEvents, now: now, lastCall: lastCall)
+        else {
+            logSkip("not due")
+            return nil
+        }
 
         let snapshot = try snapshotter.snapshotForCheck(
             processIdentifier: context.processIdentifier
         )
         let observation = try makeObservation(context: context, snapshot: snapshot)
 
+        let fingerprint = observation.accessibilityText.hashValue
+        let contentChanged = fingerprint != lastFingerprint
+        guard let reason = CheckScheduler.shouldCall(
+            events: schedulerEvents,
+            now: now,
+            lastCall: lastCall,
+            contentChanged: contentChanged,
+            isSuspicious: lastVerdict == .offTask
+        ) else {
+            logSkip("screen unchanged in \(context.bundleIdentifier)")
+            return nil
+        }
+
+        Log.write(
+            "check reason=\(reason.rawValue) app=\(context.bundleIdentifier) "
+                + "axChars=\(observation.accessibilityText.count) anchor=\(observation.anchor)"
+        )
+
+        lastSkipReason = nil
+        lastFingerprint = fingerprint
         lastCall = now
         let verdict = try await classifier.classify(observation)
+        lastVerdict = verdict.verdict
         policyEvents.append(.verdict(verdict.verdict, at: now))
-        if InterventionPolicy.shouldIntervene(events: policyEvents, now: now) {
+        let intervenes = InterventionPolicy.shouldIntervene(events: policyEvents, now: now)
+        Log.write("verdict=\(verdict.verdict) intervene=\(intervenes) evidence=\(verdict.evidence)")
+        if intervenes {
             try onIntervention(verdict)
             policyEvents.append(.intervention(at: now))
         }
         return verdict
+    }
+
+    /// Skips are the normal case — logging every one would bury the interesting lines, so
+    /// only a changed reason is written.
+    private func logSkip(_ reason: String) {
+        guard reason != lastSkipReason else { return }
+        lastSkipReason = reason
+        Log.write("skip \(reason)")
     }
 
     private func focusDidChange(_ context: FocusContext) {
@@ -114,6 +163,9 @@ public final class ObservationLoop {
         }
 
         var contextLines = ["App: \(context.bundleIdentifier)"]
+        if let url = context.url, !url.isEmpty {
+            contextLines.append("URL: \(url)")
+        }
         if let title = context.windowTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
            !title.isEmpty {
             contextLines.append("Window: \(title)")

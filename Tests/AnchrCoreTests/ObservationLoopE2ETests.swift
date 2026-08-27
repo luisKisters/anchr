@@ -6,6 +6,21 @@ import AnchrKitTestSupport
 
 @MainActor
 final class ObservationLoopE2ETests: XCTestCase {
+    /// The loop writes to `Log`, which resolves through `AppSupportRoot`. Without this a
+    /// test run appends its scripted verdicts to the real user's log, where they read as
+    /// genuine observations.
+    override func setUp() {
+        super.setUp()
+        let sandbox = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ObservationLoopLog-\(UUID().uuidString)", isDirectory: true)
+        setenv(AppSupportRoot.environmentVariable, sandbox.path, 1)
+    }
+
+    override func tearDown() {
+        unsetenv(AppSupportRoot.environmentVariable)
+        super.tearDown()
+    }
+
     func testScriptedSequenceAppendsOneChildAndMovesAnchorInsideBoundRoot() async throws {
         let sandboxURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("ObservationLoopE2E-\(UUID().uuidString)", isDirectory: true)
@@ -21,16 +36,22 @@ final class ObservationLoopE2ETests: XCTestCase {
             items: [Item(text: "Implement observation loop", depth: 0, done: false)],
             context: "Native macOS focus app"
         )
-        try store.saveState(AppState(activeListSlug: slug, anchorIndex: 0, snoozeDeadline: nil))
+        try store.saveState(AppState(activeListSlug: slug, anchorIndex: 0))
 
         let clock = TestClock(now: Date(timeIntervalSince1970: 10_000))
         let focusSource = ManualLoopFocusSource()
-        let snapshotter = StubSnapshotter(result: AXSnapshotResult(
-            text: "Window: ObservationLoop.swift\nStaticText: func checkIfDue",
-            visitedNodeCount: 2,
-            lineCount: 2,
-            usefulCharacterCount: 59
-        ))
+        let snapshotter = StubSnapshotter(results: [
+            "Window: ObservationLoop.swift\nStaticText: func checkIfDue",
+            "Window: Hacker News\nStaticText: Show HN",
+            "Window: Hacker News\nStaticText: comments",
+        ].map {
+            AXSnapshotResult(
+                text: $0,
+                visitedNodeCount: 2,
+                lineCount: 2,
+                usefulCharacterCount: $0.count
+            )
+        })
         let classifier = ScriptedClassifier(verdicts: [
             Verdict(verdict: .onTask, evidence: "Editing loop", smallerStep: "Keep editing"),
             Verdict(verdict: .offTask, evidence: "Reading news", smallerStep: "Write one test"),
@@ -55,7 +76,7 @@ final class ObservationLoopE2ETests: XCTestCase {
             windowTitle: "ObservationLoop.swift"
         ))
 
-        for elapsed in [8.0, 98.0, 188.0] {
+        for elapsed in [8.0, 30.0, 60.0] {
             clock.now = Date(timeIntervalSince1970: 10_000 + elapsed)
             let verdict = try await loop.checkIfDue()
             XCTAssertNotNil(verdict)
@@ -90,19 +111,19 @@ final class ObservationLoopE2ETests: XCTestCase {
             items: [Item(text: "Use title", depth: 0, done: false)],
             context: ""
         )
-        try store.saveState(AppState(activeListSlug: slug, anchorIndex: 0, snoozeDeadline: nil))
+        try store.saveState(AppState(activeListSlug: slug, anchorIndex: 0))
         let clock = TestClock(now: Date(timeIntervalSince1970: 20_000))
         let source = ManualLoopFocusSource()
         let classifier = RecordingClassifier()
         let loop = ObservationLoop(
             clock: clock,
             focusSource: source,
-            snapshotter: StubSnapshotter(result: AXSnapshotResult(
+            snapshotter: StubSnapshotter(results: [AXSnapshotResult(
                 text: "",
                 visitedNodeCount: 3,
                 lineCount: 0,
                 usefulCharacterCount: 0
-            )),
+            )]),
             classifier: classifier,
             store: store,
             onIntervention: { _ in }
@@ -134,7 +155,7 @@ final class ObservationLoopE2ETests: XCTestCase {
             items: [Item(text: "Resume observation", depth: 0, done: false)],
             context: ""
         )
-        try store.saveState(AppState(activeListSlug: slug, anchorIndex: 0, snoozeDeadline: nil))
+        try store.saveState(AppState(activeListSlug: slug, anchorIndex: 0))
         let clock = TestClock(now: Date(timeIntervalSince1970: 30_000))
         let source = ManualLoopFocusSource()
         let snapshotter = RecoveringSnapshotter()
@@ -177,12 +198,16 @@ private final class ManualLoopFocusSource: FocusContextSource {
 }
 
 @MainActor
+/// Hands out a different screen on every read, because that is what a real screen does
+/// and what the loop's change detection reacts to. A stub that returned one frozen window
+/// would be testing a person who is not there.
 private final class StubSnapshotter: ObservationSnapshotting {
-    let result: AXSnapshotResult
+    private let results: [AXSnapshotResult]
+    private var readCount = 0
     private(set) var preparedProcessIdentifiers: [Int32] = []
     private(set) var readProcessIdentifiers: [Int32] = []
 
-    init(result: AXSnapshotResult) { self.result = result }
+    init(results: [AXSnapshotResult]) { self.results = results }
 
     func applicationDidBecomeFrontmost(processIdentifier: Int32) throws {
         preparedProcessIdentifiers.append(processIdentifier)
@@ -190,7 +215,8 @@ private final class StubSnapshotter: ObservationSnapshotting {
 
     func snapshotForCheck(processIdentifier: Int32) throws -> AXSnapshotResult? {
         readProcessIdentifiers.append(processIdentifier)
-        return result
+        defer { readCount += 1 }
+        return results[min(readCount, results.count - 1)]
     }
 }
 

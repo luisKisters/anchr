@@ -25,7 +25,7 @@ no release, no distribution in V1.
   Claude agents.
 - Verified by hand: one `POST https://openrouter.ai/api/v1/chat/completions` with
   `response_format: json_schema, strict: true` returns a clean verdict object.
-  Round trip 1.2 s with `google/gemini-2.5-flash` — five times faster than the
+  Round trip about 3 s with `openai/gpt-5.6-luna` at low reasoning — faster than the
   `codex exec` path it replaced.
 - `~/code/projects/notetakr` is the reference project, and it is a macOS app with
   the same shape. Copy its `scripts/verify.sh` `gate()` helper, its
@@ -116,7 +116,9 @@ Two different things, do not confuse them.
 
 **The model Anchr ships with** — judges one window, hundreds of times a day:
 
-- OpenRouter, `google/gemini-2.5-flash`, `temperature: 0`, strict structured output.
+- OpenRouter, `openai/gpt-5.6-luna` with `reasoning.effort: low`, `temperature: 0`,
+  strict structured output. Measured: ~3 s and $0.0003 a check, against 11 s for the
+  same verdict at `medium`.
 - Pinned in `AnchrKit/OpenRouterRequest.swift`, overridable with
   `ANCHR_OPENROUTER_MODEL`. Never read from a config file Anchr does not own —
   that failure mode already cost a night once.

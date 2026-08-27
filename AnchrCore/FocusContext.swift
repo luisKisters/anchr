@@ -7,14 +7,24 @@ public struct FocusContext: Equatable, Sendable {
     public let processIdentifier: Int32
     public let windowTitle: String?
 
+    /// The address of the page in front, when the front window is a browser.
+    ///
+    /// Worth its own field rather than being buried in the flattened text: `youtube.com`
+    /// is a far sharper signal than three thousand characters of navigation chrome, and
+    /// it changes on every page switch — including in single-page apps, where the
+    /// surrounding text does not change at all.
+    public let url: String?
+
     public init(
         bundleIdentifier: String,
         processIdentifier: Int32,
-        windowTitle: String?
+        windowTitle: String?,
+        url: String? = nil
     ) {
         self.bundleIdentifier = bundleIdentifier
         self.processIdentifier = processIdentifier
         self.windowTitle = windowTitle
+        self.url = url
     }
 }
 
@@ -111,7 +121,8 @@ public final class FocusContextMonitor: NSObject, FocusContextSource {
         relay.publish(FocusContext(
             bundleIdentifier: application.bundleIdentifier ?? application.localizedName ?? "unknown",
             processIdentifier: application.processIdentifier,
-            windowTitle: focusedWindowTitle(processIdentifier: application.processIdentifier)
+            windowTitle: focusedWindowTitle(processIdentifier: application.processIdentifier),
+            url: BrowserURL.read(processIdentifier: application.processIdentifier)
         ))
     }
 

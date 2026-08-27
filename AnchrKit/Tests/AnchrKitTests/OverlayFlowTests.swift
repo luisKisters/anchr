@@ -34,7 +34,7 @@ final class OverlayFlowTests: XCTestCase {
 
     func testInterventionBackAndNewAnchorActions() {
         var back = InterventionState(anchor: "Old", evidence: "Seen", smallerStep: "Small")
-        XCTAssertEqual(Intervention.reduce(&back, key: .answerBack), .snooze)
+        XCTAssertEqual(Intervention.reduce(&back, key: .answerBack), .dismiss)
 
         var newAnchor = InterventionState(anchor: "Old", evidence: "Seen", smallerStep: "Small")
         XCTAssertNil(Intervention.reduce(&newAnchor, key: .answerNewAnchor))

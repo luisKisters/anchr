@@ -18,6 +18,21 @@ CONFIGURATION="${ANCHR_CONFIGURATION:-debug}"
 BUNDLE_ID="com.anchr.app"
 APP_DIR="$REPO_ROOT/.build/Anchr.app"
 
+# macOS keys the Accessibility grant to a bundle at a stable location. A bundle that
+# lives in .build looks like a different app after every `swift build`, so the real
+# install target is /Applications and .build is only the staging area.
+INSTALL_DIR="${ANCHR_INSTALL_DIR:-/Applications}"
+INSTALLED_APP="$INSTALL_DIR/Anchr.app"
+
+MODE="run"
+for arg in "$@"; do
+    case "$arg" in
+        --build-only) MODE="build-only" ;;
+        --no-install) MODE="run-from-build" ;;
+        *) echo "usage: scripts/run-app.sh [--build-only|--no-install]" >&2; exit 2 ;;
+    esac
+done
+
 echo "[run-app] building"
 xcrun swift build --disable-sandbox -c "$CONFIGURATION" --product AnchrApp
 BINARY="$(xcrun swift build --disable-sandbox -c "$CONFIGURATION" --show-bin-path)/AnchrApp"
@@ -57,16 +72,46 @@ PLIST
 
 printf 'APPL????' > "$APP_DIR/Contents/PkgInfo"
 
-# Ad-hoc signing keeps the Accessibility grant stable across rebuilds. It never
-# touches the keychain, so it cannot block an unattended run.
-echo "[run-app] signing (ad-hoc)"
-codesign --force --sign - --identifier "$BUNDLE_ID" "$APP_DIR" >/dev/null
+# Signing decides whether the Accessibility grant survives a rebuild. macOS keys the
+# grant to the code signature, so an ad-hoc signature — whose hash changes on every
+# build — makes the grant dead on arrival and forces the user to re-add the app by hand
+# every single time. A real identity is stable, so the grant is granted once.
+#
+# Set ANCHR_SIGN_IDENTITY to override. Ad-hoc stays the fallback so a checkout without
+# a certificate still builds.
+if [[ -z "${ANCHR_SIGN_IDENTITY:-}" ]]; then
+    ANCHR_SIGN_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
+        | grep -m1 "Developer ID Application" \
+        | sed -E 's/.*"(.*)".*/\1/')"
+fi
 
-if [[ "${1:-}" == "--build-only" ]]; then
+if [[ -n "$ANCHR_SIGN_IDENTITY" ]]; then
+    echo "[run-app] signing as $ANCHR_SIGN_IDENTITY"
+    codesign --force --sign "$ANCHR_SIGN_IDENTITY" --identifier "$BUNDLE_ID" \
+        --options runtime --timestamp=none "$APP_DIR" >/dev/null
+else
+    echo "[run-app] no Developer ID found; signing ad-hoc (the Accessibility grant will" >&2
+    echo "[run-app] not survive rebuilds — see ANCHR_SIGN_IDENTITY)" >&2
+    codesign --force --sign - --identifier "$BUNDLE_ID" "$APP_DIR" >/dev/null
+fi
+
+if [[ "$MODE" == "build-only" ]]; then
     echo "[run-app] built $APP_DIR"
     exit 0
 fi
 
-echo "[run-app] launching"
-open "$APP_DIR"
+LAUNCH_TARGET="$APP_DIR"
+if [[ "$MODE" == "run" ]]; then
+    if [[ -w "$INSTALL_DIR" ]]; then
+        echo "[run-app] installing to $INSTALLED_APP"
+        /bin/rm -rf "$INSTALLED_APP"
+        ditto "$APP_DIR" "$INSTALLED_APP"
+        LAUNCH_TARGET="$INSTALLED_APP"
+    else
+        echo "[run-app] $INSTALL_DIR is not writable; running from $APP_DIR" >&2
+    fi
+fi
+
+echo "[run-app] launching $LAUNCH_TARGET"
+open "$LAUNCH_TARGET"
 echo "[run-app] running. Menu bar dot, or press option-space. Quit from the menu bar."

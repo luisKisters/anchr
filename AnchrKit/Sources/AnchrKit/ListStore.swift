@@ -3,12 +3,10 @@ import Foundation
 public struct AppState: Codable, Equatable, Sendable {
     public var activeListSlug: String?
     public var anchorIndex: Int?
-    public var snoozeDeadline: Date?
 
-    public init(activeListSlug: String?, anchorIndex: Int?, snoozeDeadline: Date?) {
+    public init(activeListSlug: String?, anchorIndex: Int?) {
         self.activeListSlug = activeListSlug
         self.anchorIndex = anchorIndex
-        self.snoozeDeadline = snoozeDeadline
     }
 }
 
@@ -174,10 +172,10 @@ public struct ListStore: Sendable {
         guard let data = try? Data(contentsOf: stateURL),
               let decoded = try? Self.decoder.decode(AppState.self, from: data)
         else {
-            return AppState(activeListSlug: slugs.first, anchorIndex: nil, snoozeDeadline: nil)
+            return AppState(activeListSlug: slugs.first, anchorIndex: nil)
         }
         if let activeListSlug = decoded.activeListSlug, !slugs.contains(activeListSlug) {
-            return AppState(activeListSlug: slugs.first, anchorIndex: nil, snoozeDeadline: nil)
+            return AppState(activeListSlug: slugs.first, anchorIndex: nil)
         }
         return decoded
     }
@@ -186,12 +184,6 @@ public struct ListStore: Sendable {
         try ensureDirectories()
         let data = try Self.encoder.encode(state)
         try data.write(to: stateURL, options: .atomic)
-    }
-
-    public func snooze(until deadline: Date) throws {
-        var state = try loadState()
-        state.snoozeDeadline = deadline
-        try saveState(state)
     }
 
     @discardableResult

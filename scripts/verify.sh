@@ -52,9 +52,10 @@ gate "network calls are confined to OpenRouterClassifier.swift" \
     -E 'URLSession|https?://[a-z.]*openrouter' --include='*.swift' \
     --exclude='OpenRouterClassifier.swift' --exclude='OpenRouterRequest.swift' "${SWIFT_PATHS[@]}"
 
-gate "accessibility elements are confined to AXSnapshot.swift and FocusContext.swift" \
+gate "accessibility elements stay in the three files that read the screen" \
     'AXUIElement' --include='*.swift' \
-    --exclude='AXSnapshot.swift' --exclude='FocusContext.swift' "${SWIFT_PATHS[@]}"
+    --exclude='AXSnapshot.swift' --exclude='FocusContext.swift' --exclude='BrowserURL.swift' \
+    "${SWIFT_PATHS[@]}"
 
 gate "no screen-capture API is present" \
     -E 'screencapture|CGWindowListCreateImage|SCStream' --include='*.swift' \

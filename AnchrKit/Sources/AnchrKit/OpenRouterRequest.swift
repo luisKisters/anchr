@@ -4,10 +4,15 @@ import Foundation
 /// body, the structured-output schema and the answer decoding. `AnchrCore` owns only
 /// the URLSession call. So the wire format is table-tested with no network.
 public enum OpenRouterRequest {
-    /// Cheap, fast, and supports strict structured outputs. Override with
-    /// `ANCHR_OPENROUTER_MODEL` when a better one appears; the id is never
-    /// read from a config file Anchr does not own.
-    public static let defaultModel = "google/gemini-2.5-flash"
+    /// Override with `ANCHR_OPENROUTER_MODEL`; the id is never read from a config file
+    /// Anchr does not own. That is the mistake that made every call fail silently under
+    /// the old Codex path.
+    public static let defaultModel = "openai/gpt-5.6-luna"
+
+    /// Measured against a real 3,000-character window: `low` answers in about 3 seconds,
+    /// `medium` in 11, for the same verdict at the same price. At a 15-second tick,
+    /// `medium` would spend a third of every cycle waiting.
+    public static let defaultReasoningEffort = "low"
 
     public static let endpoint = URL(string: "https://openrouter.ai/api/v1/chat/completions")!
 
@@ -27,7 +32,10 @@ public enum OpenRouterRequest {
             "model": model,
             // Deterministic: the same window twice must not flip the verdict.
             "temperature": 0,
-            "max_tokens": 600,
+            // Reasoning tokens are billed as output and are invisible in the answer, so
+            // the ceiling has to leave room for them or the reply arrives truncated.
+            "max_tokens": 2_000,
+            "reasoning": ["effort": defaultReasoningEffort],
             "messages": [
                 ["role": "user", "content": ObservationPrompt.text(for: observation)],
             ],

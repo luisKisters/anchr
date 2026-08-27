@@ -71,7 +71,15 @@ public enum InterventionKey: Equatable, Sendable {
 }
 
 public enum InterventionEffect: Equatable, Sendable {
-    case snooze
+    /// "Back to it" closes the overlay and nothing else.
+    ///
+    /// It used to buy ten minutes of silence, which had the rule exactly backwards: the
+    /// answer is a claim about what happens next, and the right response to a claim is to
+    /// check it, not to stop looking. Someone who really did go back is judged `on_task`
+    /// at the next check anyway; someone who did not would have bought their way out by
+    /// telling Anchr what it wanted to hear. The policy cooldown is the only quiet period,
+    /// and it is the same length whatever you answer.
+    case dismiss
     case goSmaller(String)
     case setNewAnchor(String)
 }
@@ -97,7 +105,7 @@ public enum Intervention {
     ) -> InterventionEffect? {
         switch (state.stage, key) {
         case (.asking, .answerBack):
-            return .snooze
+            return .dismiss
         case (.asking, .answerSmaller):
             state.stage = .editing(.smaller, text: state.smallerStep)
         case (.asking, .answerNewAnchor):

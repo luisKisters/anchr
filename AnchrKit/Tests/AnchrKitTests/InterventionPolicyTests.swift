@@ -15,9 +15,13 @@ final class InterventionPolicyTests: XCTestCase {
         let cases = [
             Case(name: "one off-task", kinds: [.offTask], expected: false),
             Case(name: "two off-task", kinds: [.offTask, .offTask], expected: true),
-            Case(name: "on-task resets", kinds: [.offTask, .onTask, .offTask], expected: false),
-            Case(name: "unclear resets", kinds: [.offTask, .unclear, .offTask], expected: false),
+            // These two used to expect false, under a rule that wanted the off_task
+            // verdicts consecutive. Real use showed what that meant: dipping back into the
+            // work app for one check bought unlimited time in the wrong one.
+            Case(name: "on-task in between does not clear it", kinds: [.offTask, .onTask, .offTask], expected: true),
+            Case(name: "unclear in between does not clear it", kinds: [.offTask, .unclear, .offTask], expected: true),
             Case(name: "unclear never acts alone", kinds: [.unclear, .unclear], expected: false),
+            Case(name: "on-task alone is silent", kinds: [.onTask, .onTask, .onTask], expected: false),
         ]
 
         for testCase in cases {
@@ -32,27 +36,20 @@ final class InterventionPolicyTests: XCTestCase {
         }
     }
 
-    func testTenMinuteSilenceRequiresNewConsecutiveVerdicts() {
+    func testVerdictsFromBeforeAnInterruptionDoNotTriggerTheNextOne() {
         let events: [InterventionPolicy.Event] = [
             .verdict(.offTask, at: date(0)),
             .verdict(.offTask, at: date(1)),
             .intervention(at: date(1)),
-            .verdict(.offTask, at: date(590)),
-            .verdict(.offTask, at: date(599)),
         ]
 
-        XCTAssertFalse(InterventionPolicy.shouldIntervene(events: events, now: date(600)))
-        XCTAssertTrue(InterventionPolicy.shouldIntervene(events: events, now: date(601)))
-        XCTAssertFalse(
-            InterventionPolicy.shouldIntervene(
-                events: Array(events.prefix(3)),
-                now: date(601)
-            ),
-            "Old verdicts must not trigger a second intervention"
-        )
+        XCTAssertFalse(InterventionPolicy.shouldIntervene(events: events, now: date(60)))
     }
 
-    func testFourPerRollingHourCeilingWithContinuousOffTaskVerdicts() {
+    /// With no cooldown left, the pace is set only by "two fresh off_task verdicts each
+    /// time". One verdict a minute for an hour therefore yields one interruption every two
+    /// minutes — and the hourly ceiling never comes near, which is the point of it.
+    func testPaceIsSetByTheVerdictCountNotByACeiling() {
         var events: [InterventionPolicy.Event] = []
         var interventionCount = 0
 
@@ -65,7 +62,44 @@ final class InterventionPolicyTests: XCTestCase {
             }
         }
 
-        XCTAssertEqual(interventionCount, 4)
+        XCTAssertEqual(interventionCount, 30)
+        XCTAssertLessThan(
+            interventionCount,
+            InterventionPolicy.maximumPerHour,
+            "The ceiling is a runaway guard and must not shape normal use."
+        )
+    }
+
+    /// The rule the user insisted on: no answer buys quiet. Say "Back to it", keep
+    /// drifting, and the next two verdicts bring the next interruption.
+    func testNoAnswerBuysAnyQuiet() {
+        for answer in [InterventionPolicy.Answer.backToIt, .changedTheTask] {
+            let events: [InterventionPolicy.Event] = [
+                .verdict(.offTask, at: date(0)),
+                .verdict(.offTask, at: date(15)),
+                .intervention(at: date(15)),
+                .answered(answer, at: date(18)),
+                .verdict(.offTask, at: date(30)),
+                .verdict(.offTask, at: date(45)),
+            ]
+
+            XCTAssertTrue(
+                InterventionPolicy.shouldIntervene(events: events, now: date(45)),
+                "\(answer) must not suppress the next interruption."
+            )
+        }
+    }
+
+    /// The only thing that still paces interruptions: the count restarts after each one.
+    func testOneFreshOffTaskIsNotEnoughAfterAnInterruption() {
+        let events: [InterventionPolicy.Event] = [
+            .verdict(.offTask, at: date(0)),
+            .verdict(.offTask, at: date(15)),
+            .intervention(at: date(15)),
+            .verdict(.offTask, at: date(30)),
+        ]
+
+        XCTAssertFalse(InterventionPolicy.shouldIntervene(events: events, now: date(30)))
     }
 
     private func date(_ seconds: TimeInterval) -> Date {

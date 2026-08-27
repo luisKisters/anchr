@@ -89,7 +89,7 @@ fi
 if [[ -z "$KEY" ]]; then
     block "No OpenRouter key. Set OPENROUTER_API_KEY, or paste one into onboarding, or store it at ~/Library/Application Support/Anchr/openrouter-key. Every classification fails without it."
 else
-    MODEL="${ANCHR_OPENROUTER_MODEL:-google/gemini-2.5-flash}"
+    MODEL="${ANCHR_OPENROUTER_MODEL:-openai/gpt-5.6-luna}"
     PROBE=/tmp/anchr-preflight-model.json
     if run_with_timeout 60 curl -sS --max-time 45 https://openrouter.ai/api/v1/chat/completions \
         -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \

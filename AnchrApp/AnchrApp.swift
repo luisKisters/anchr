@@ -49,17 +49,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     private var inputMonitor: Any?
     private var observationLoop: ObservationLoop?
     private var checkTimer: Timer?
+    private var permissionTimer: Timer?
+    private var lastCheckError: String?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         E2EFixture.seedIfRequested()
+
+        // Ask on the first launch that is not trusted. Without this the app never
+        // appears in the Accessibility list, so there is nothing for the user to switch
+        // on — and the global hotkey, which needs the grant, stays silent forever.
+        if AccessibilityPermission.currentStatus != .granted {
+            AccessibilityPermission.request()
+        }
+
         overlayController = OverlayWindowController()
         installGlobalHotKey()
         startObservationLoop()
+        watchAccessibilityGrant()
 
-        // XCUITest cannot press a system-wide hotkey, so the UI tests ask for the
-        // overlay at launch instead. Nothing else about the app changes.
-        if ProcessInfo.processInfo.environment["ANCHR_E2E_SHOW_OVERLAY"] == "1" {
+        Log.write(
+            "launch accessibility=\(AccessibilityPermission.currentStatus) "
+                + "key=\(OpenRouterKey.load() == nil ? "missing" : "present")"
+        )
+
+        // Open at launch only while setup is unfinished. A first run must not wait for a
+        // hotkey that needs a permission nobody has granted yet — but once there is a
+        // list, an overlay that appears by itself is indistinguishable from an
+        // intervention, and every later launch would read as a false alarm.
+        //
+        // The override exists because XCUITest cannot press a system-wide hotkey. Without
+        // it the GUI suite only sees the overlay by accident, through its own unconfigured
+        // fixture profile — passing for a reason that has nothing to do with the test.
+        let forceOverlay = ProcessInfo.processInfo.environment["ANCHR_E2E_SHOW_OVERLAY"] == "1"
+        if forceOverlay || !OverlayFlowModel.isSetUp {
             showOverlay()
+        }
+    }
+
+    /// The Accessibility grant arrives minutes after launch, in System Settings, with no
+    /// notification to the app. Polling is the only way to notice — and until it is
+    /// noticed, the AX observers are not installed, so nothing is ever observed.
+    private func watchAccessibilityGrant() {
+        guard AccessibilityPermission.currentStatus != .granted else { return }
+        permissionTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard AccessibilityPermission.currentStatus == .granted else { return }
+                self?.permissionTimer?.invalidate()
+                self?.permissionTimer = nil
+                Log.write("accessibility granted; restarting the observation loop")
+                // Restart: the AX observers bail out early when untrusted, so the loop
+                // started at launch is watching nothing.
+                self?.observationLoop?.stop()
+                self?.observationLoop?.start()
+                self?.overlayController?.accessibilityDidBecomeGranted()
+            }
         }
     }
 
@@ -74,6 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             NSEvent.removeMonitor(inputMonitor)
         }
         checkTimer?.invalidate()
+        permissionTimer?.invalidate()
         observationLoop?.stop()
     }
 
@@ -109,7 +153,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     private func startObservationLoop() {
         // No key yet means onboarding has not finished. The menu bar, the list and the
         // overlay all still work; only the judging is off, which is better than a crash.
-        guard let classifier = try? OpenRouterClassifier() else { return }
+        guard let classifier = try? OpenRouterClassifier() else {
+            Log.write("observation loop off: no OpenRouter key")
+            return
+        }
         let loop = ObservationLoop(
             clock: SystemObservationClock(),
             focusSource: FocusContextMonitor(),
@@ -120,6 +167,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             self?.overlayController?.showIntervention(verdict)
         }
         observationLoop = loop
+        overlayController?.onInterventionAnswer = { [weak loop] answer in
+            loop?.recordInterventionAnswer(answer)
+        }
         loop.start()
         loop.recordUserInput()
 
@@ -136,7 +186,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                 do {
                     _ = try await loop.checkIfDue()
                 } catch {
-                    fputs("observation check failed: \(error)\n", stderr)
+                    // Without the grant this throws once a second forever, and the log
+                    // becomes unreadable exactly when someone needs to read it.
+                    let description = "\(error)"
+                    if description != self.lastCheckError {
+                        self.lastCheckError = description
+                        Log.write("check failed: \(description)")
+                    }
                 }
             }
         }

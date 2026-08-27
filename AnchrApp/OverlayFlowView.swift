@@ -35,7 +35,44 @@ final class OverlayFlowModel: ObservableObject {
         self.store = store
         editor = ListEditorModel(store: store)
         let hasLists = ((try? store.listSlugs()) ?? []).isEmpty == false
-        mode = hasLists ? .list : .onboardingPermission
+        mode = hasLists ? .list : Self.onboardingStep()
+        if case .create(onboarding: true) = mode {
+            createName = ""
+            createPlan = ""
+        }
+    }
+
+    /// Whether Anchr has everything it needs to just run: a list, the permission, a key.
+    static var isSetUp: Bool {
+        guard ((try? ListStore(rootURL: AppSupportRoot.url).listSlugs()) ?? []).isEmpty == false
+        else { return false }
+        return AccessibilityPermission.currentStatus == .granted && OpenRouterKey.load() != nil
+    }
+
+    /// Onboarding asks only for what is actually missing. Re-asking for a permission the
+    /// user already granted, or a key already on disk, is the fastest way to make an app
+    /// feel broken.
+    private static func onboardingStep() -> OverlayMode {
+        if AccessibilityPermission.currentStatus != .granted { return .onboardingPermission }
+        if OpenRouterKey.load() == nil { return .onboardingKey }
+        return .create(onboarding: true)
+    }
+
+    /// Onboarding is not dismissible. Every other screen is.
+    var canDismiss: Bool {
+        switch mode {
+        case .onboardingPermission, .onboardingKey, .create(onboarding: true):
+            false
+        default:
+            true
+        }
+    }
+
+    /// Called when the grant lands while the app is already running.
+    func accessibilityDidBecomeGranted() {
+        guard case .onboardingPermission = mode else { return }
+        statusMessage = nil
+        mode = OpenRouterKey.load() == nil ? .onboardingKey : .create(onboarding: true)
     }
 
     init(preview mode: OverlayMode, editor: ListEditorModel) {
@@ -94,7 +131,7 @@ final class OverlayFlowModel: ObservableObject {
                 context: createContext.trimmingCharacters(in: .whitespacesAndNewlines)
             )
             let anchorIndex = items.firstIndex { !$0.done } ?? 0
-            try store.saveState(AppState(activeListSlug: slug, anchorIndex: anchorIndex, snoozeDeadline: nil))
+            try store.saveState(AppState(activeListSlug: slug, anchorIndex: anchorIndex))
             editor = ListEditorModel(store: store)
             statusMessage = nil
             mode = .list
@@ -119,7 +156,11 @@ final class OverlayFlowModel: ObservableObject {
               let index = appState.anchorIndex,
               let list = try? store.loadList(slug: slug),
               list.items.indices.contains(index)
-        else { return }
+        else {
+            // The silent path that leaves the overlay open on whatever it was showing.
+            Log.write("overlay intervention dropped: no anchor to attach it to")
+            return
+        }
         intervention = InterventionState(
             anchor: list.items[index].text,
             evidence: verdict.evidence.uppercased(),
@@ -128,6 +169,10 @@ final class OverlayFlowModel: ObservableObject {
         mode = .intervention
     }
 
+    /// Called with what the person answered, so the policy can treat a promise differently
+    /// from a change to the list.
+    var onInterventionAnswer: ((InterventionPolicy.Answer) -> Void)?
+
     func sendIntervention(_ key: InterventionKey) -> Bool {
         guard var state = intervention else { return false }
         let effect = Intervention.reduce(&state, key: key)
@@ -135,12 +180,14 @@ final class OverlayFlowModel: ObservableObject {
         guard let effect else { return false }
         do {
             switch effect {
-            case .snooze:
-                try store.snooze(until: Date().addingTimeInterval(600))
+            case .dismiss:
+                onInterventionAnswer?(.backToIt)
             case let .goSmaller(text):
                 try store.goSmaller(text: text)
+                onInterventionAnswer?(.changedTheTask)
             case let .setNewAnchor(text):
                 try store.setNewAnchor(text: text)
+                onInterventionAnswer?(.changedTheTask)
             }
             editor = ListEditorModel(store: store)
             mode = .list
@@ -152,11 +199,13 @@ final class OverlayFlowModel: ObservableObject {
     }
 
     func continueFromPermission() {
-        if AccessibilityPermission.currentStatus == .granted {
+        // Prompt rather than only read: pressing Continue is exactly the moment the
+        // system dialog should appear, and it also registers Anchr in the list.
+        if AccessibilityPermission.request() == .granted {
             statusMessage = nil
             mode = .onboardingKey
         } else {
-            statusMessage = "Accessibility permission is not granted."
+            statusMessage = "Not granted yet. Switch Anchr on in the list, then press Continue again."
         }
     }
 
@@ -320,42 +369,40 @@ private struct CreateListView: View {
         OverlayBackdrop(heavy: false, snapshotMode: snapshotMode) {
             VStack(spacing: 0) {
                 header(onboarding ? "Your first list" : "New list", meta: "PASTE A PLAN")
-                VStack(spacing: 18) {
-                    if snapshotMode {
-                        Text(model.createName.isEmpty ? "Name" : model.createName)
-                            .font(.title3)
-                            .foregroundStyle(model.createName.isEmpty ? .white.opacity(0.24) : .white)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Text(model.createPlan.isEmpty
-                             ? "Paste your plan. Any format — bullets, numbers, tabs, checkboxes."
-                             : model.createPlan)
-                            .foregroundStyle(model.createPlan.isEmpty ? .white.opacity(0.24) : .white)
-                            .frame(maxWidth: .infinity, minHeight: 230, alignment: .topLeading)
-                    } else {
-                        TextField("Name", text: $model.createName)
-                            .textFieldStyle(.plain)
-                            .font(.title3)
-                        TextEditor(text: $model.createPlan)
-                            .scrollContentBackground(.hidden)
-                            .frame(height: 230)
-                            .overlay(alignment: .topLeading) {
-                                if model.createPlan.isEmpty {
-                                    Text("Paste your plan. Any format — bullets, numbers, tabs, checkboxes.")
-                                        .foregroundStyle(.white.opacity(0.24))
-                                        .allowsHitTesting(false)
-                                        .padding(.top, 8)
-                                        .padding(.leading, 5)
-                                }
-                            }
+                VStack(alignment: .leading, spacing: 26) {
+                    field(label: "NAME", optional: true) {
+                        if snapshotMode {
+                            Text(model.createName.isEmpty ? "Optional — taken from the first task" : model.createName)
+                                .font(.title3)
+                                .foregroundStyle(model.createName.isEmpty ? .white.opacity(0.24) : .white)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            TextField("Optional — taken from the first task", text: $model.createName)
+                                .textFieldStyle(.plain)
+                                .font(.title3)
+                        }
+                    }
+                    field(label: "PLAN") {
+                        if snapshotMode {
+                            Text(model.createPlan.isEmpty ? planPlaceholder : model.createPlan)
+                                .foregroundStyle(model.createPlan.isEmpty ? .white.opacity(0.24) : .white)
+                                .frame(maxWidth: .infinity, minHeight: 210, alignment: .topLeading)
+                        } else {
+                            planEditor
+                        }
                     }
                     if model.showsCreateContext {
-                        TextEditor(text: $model.createContext)
-                            .scrollContentBackground(.hidden)
-                            .frame(height: 100)
+                        field(label: "CONTEXT", optional: true) {
+                            TextEditor(text: $model.createContext)
+                                .scrollContentBackground(.hidden)
+                                .padding(.leading, -5)
+                                .frame(height: 90)
+                        }
                     } else {
                         Button("+ CONTEXT") { model.showsCreateContext = true }
                             .buttonStyle(.plain)
                             .font(.caption.monospaced())
+                            .foregroundStyle(.white.opacity(0.48))
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     status(model.statusMessage)
@@ -372,6 +419,53 @@ private struct CreateListView: View {
             .onExitCommand {
                 if !onboarding { model.showSwitcher() }
             }
+        }
+    }
+
+    private var planPlaceholder: String {
+        "Paste your plan. Any format — bullets, numbers, tabs, checkboxes."
+    }
+
+    /// `TextEditor` insets its text by 5 points and `TextField` does not, so the two sit
+    /// on different left edges and the caret lands beside the placeholder rather than on
+    /// it. Cancelling the inset puts every field, and the placeholder, on the one line the
+    /// header already sets.
+    private var planEditor: some View {
+        ZStack(alignment: .topLeading) {
+            if model.createPlan.isEmpty {
+                Text(planPlaceholder)
+                    .foregroundStyle(.white.opacity(0.24))
+                    .allowsHitTesting(false)
+            }
+            TextEditor(text: $model.createPlan)
+                .scrollContentBackground(.hidden)
+                .padding(.leading, -5)
+        }
+        .frame(height: 210, alignment: .topLeading)
+    }
+
+    /// One labelled block per field. Without the labels the plan box and the context box
+    /// are two unmarked rectangles, and nothing on screen says which is which.
+    private func field(
+        label: String,
+        optional: Bool = false,
+        @ViewBuilder content: () -> some View
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text(label)
+                    .font(.caption2.monospaced())
+                    .tracking(1.2)
+                    .foregroundStyle(.white.opacity(0.48))
+                if optional {
+                    Text("OPTIONAL")
+                        .font(.caption2.monospaced())
+                        .tracking(1.2)
+                        .foregroundStyle(.white.opacity(0.24))
+                }
+            }
+            content()
+            Divider().overlay(.white.opacity(0.12))
         }
     }
 }
@@ -481,15 +575,21 @@ private struct InterventionView: View {
     }
 
     private func answer(_ title: String, key: InterventionKey, primary: Bool = false) -> some View {
-        Button(title) {
+        // Padding and background belong inside the label. A plain Button only hit-tests
+        // its label, so padding applied to the Button leaves a border that looks
+        // clickable and is not — which is why the mouse missed and only 1/2/3 worked.
+        Button {
             if model.sendIntervention(key) { onClose() }
+        } label: {
+            Text(title)
+                .padding(.vertical, 10)
+                .padding(.horizontal, 18)
+                .foregroundStyle(primary ? .black : .white)
+                .background(primary ? .white : .clear)
+                .overlay { RoundedRectangle(cornerRadius: 4).stroke(.white.opacity(primary ? 1 : 0.28)) }
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.vertical, 10)
-        .padding(.horizontal, 18)
-        .foregroundStyle(primary ? .black : .white)
-        .background(primary ? .white : .clear)
-        .overlay { RoundedRectangle(cornerRadius: 4).stroke(.white.opacity(primary ? 1 : 0.28)) }
     }
 
     private func interventionSeen(_ state: InterventionState) -> String {
@@ -609,8 +709,15 @@ private func status(_ value: String?) -> some View {
 private struct FlowKeyEvent {
     let characters: String
     let keyCode: UInt16
+    var modifiers: NSEvent.ModifierFlags = []
 
     var switcherKey: SwitcherKey? {
+        // The key that opened this screen closes it again. A shortcut that only works in
+        // one direction is a shortcut you have to stop and think about.
+        if modifiers.contains(.command), characters.lowercased() == "k" {
+            return .escape
+        }
+        guard !modifiers.contains(.command) else { return nil }
         switch characters.lowercased() {
         case "\u{f700}", "w": return .moveUp
         case "\u{f701}", "s": return .moveDown
@@ -653,7 +760,30 @@ private final class FlowKeyNSView: NSView {
     override var acceptsFirstResponder: Bool { true }
 
     override func keyDown(with event: NSEvent) {
-        guard let characters = event.charactersIgnoringModifiers else { return }
-        onKey?(FlowKeyEvent(characters: characters, keyCode: event.keyCode))
+        onKey?(Self.flowEvent(for: event))
+    }
+
+    /// Command combinations never reach `keyDown` — AppKit offers them as key equivalents
+    /// first. Without this, ⌘K could open the switcher but never close it.
+    ///
+    /// Only the combinations this overlay actually owns are claimed. Swallowing every
+    /// command key would take ⌘Q and ⌘W with it.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard modifiers == .command,
+              event.charactersIgnoringModifiers?.lowercased() == "k"
+        else {
+            return super.performKeyEquivalent(with: event)
+        }
+        onKey?(Self.flowEvent(for: event))
+        return true
+    }
+
+    private static func flowEvent(for event: NSEvent) -> FlowKeyEvent {
+        FlowKeyEvent(
+            characters: event.charactersIgnoringModifiers ?? "",
+            keyCode: event.keyCode,
+            modifiers: event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        )
     }
 }

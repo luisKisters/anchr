@@ -31,8 +31,7 @@ public enum E2EFixture {
 
             let state = AppState(
                 activeListSlug: seedSlug,
-                anchorIndex: 0,
-                snoozeDeadline: nil
+                anchorIndex: 0
             )
             let encoded = try JSONEncoder().encode(state)
             try encoded.write(to: root.appendingPathComponent("state.json"))

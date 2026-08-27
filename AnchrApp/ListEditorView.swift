@@ -48,7 +48,10 @@ final class ListEditorModel: ObservableObject {
 
     private func persist() {
         guard let store, let slug else { return }
-        try? store.saveList(state.list, slug: slug)
+        // The editor always keeps one line to hold the caret, and that line starts empty.
+        // The file should not.
+        let saved = TodoList(items: state.list.items.filter { !$0.text.isEmpty })
+        try? store.saveList(saved, slug: slug)
         guard var appState = try? store.loadState() else { return }
         appState.anchorIndex = state.anchorIndex
         try? store.saveState(appState)
@@ -60,7 +63,6 @@ struct ListEditorView: View {
     let onClose: () -> Void
     let onSwitcher: () -> Void
     let snapshotMode: Bool
-    @FocusState private var focusedEditor: Int?
 
     init(
         model: ListEditorModel,
@@ -89,16 +91,18 @@ struct ListEditorView: View {
                 .frame(width: 720)
         }
         .foregroundStyle(.white)
-        .background {
-            KeyCaptureView(isEnabled: !model.state.isEditing) { key in
-                model.send(key)
-                if model.state.shouldClose {
-                    onClose()
-                }
-                if model.state.shouldOpenSwitcher {
-                    onSwitcher()
-                }
-            }
+        // A fallback for the moment there is no line to type in — an empty list has no
+        // text field, and Escape still has to get you out of the window.
+        .onExitCommand { send(.escape) }
+    }
+
+    private func send(_ key: ListEditorKey) {
+        model.send(key)
+        if model.state.shouldClose {
+            onClose()
+        }
+        if model.state.shouldOpenSwitcher {
+            onSwitcher()
         }
     }
 
@@ -167,24 +171,14 @@ struct ListEditorView: View {
                 .accessibilityElement()
                 .accessibilityIdentifier("listCheckbox_\(index)_\(item.done ? "done" : "open")")
 
-            if model.state.selection == index, let editingText = model.state.editingText {
-                TextField(
-                    "",
-                    text: Binding(
-                        get: { editingText },
-                        set: { model.send(.replaceEditingText($0)) }
-                    )
+            if model.state.selection == index {
+                LineEditor(
+                    text: item.text,
+                    isDone: item.done,
+                    onText: { send(.replaceText($0)) },
+                    onKey: { send($0) }
                 )
-                .textFieldStyle(.plain)
-                .font(.callout)
-                .focused($focusedEditor, equals: index)
-                .onSubmit { model.send(.enter) }
-                .onExitCommand { model.send(.escape) }
-                .onKeyPress(keys: [.tab]) { press in
-                    model.send(press.modifiers.contains(.shift) ? .unindent : .indent)
-                    return .handled
-                }
-                .task { focusedEditor = index }
+                .accessibilityIdentifier("listItem_\(index)")
             } else {
                 Text(item.text)
                     .font(.callout)
@@ -237,19 +231,12 @@ struct ListEditorView: View {
 
     private var keyHints: some View {
         HStack(spacing: 22) {
-            if model.state.isEditing {
-                hint("↵  SAVE")
-                hint("ESC  CANCEL")
-                hint("EMPTY + ↵  DELETES")
-            } else {
-                hint("↑↓ / WS  MOVE")
-                hint("SPACE  DONE")
-                hint("↵  EDIT")
-                hint("⇥  INDENT")
-                hint("N  NEW")
-                hint("A  SET ANCHOR")
-                hint("ESC  CLOSE")
-            }
+            hint("↵  NEW LINE")
+            hint("⇥ / ⇧⇥  INDENT")
+            hint("⌘↵  SET ANCHOR")
+            hint("⌘D  DONE")
+            hint("⌘K  SWITCH")
+            hint("ESC  CLOSE")
             Spacer(minLength: 0)
         }
     }
@@ -273,59 +260,156 @@ struct ListEditorView: View {
     }
 }
 
-private struct KeyCaptureView: NSViewRepresentable {
-    let isEnabled: Bool
+
+
+/// The line you are typing in, as a real `NSTextField`.
+///
+/// SwiftUI could not do this job. `@FocusState` did not reliably take focus when the
+/// selection moved, so after Return the caret was nowhere and no key reached the app until
+/// you clicked. And Tab never arrived at `.onKeyPress`: AppKit spends it on focus
+/// navigation before SwiftUI sees it, so Shift-Tab could not outdent. AppKit solves both
+/// directly — `doCommandBy` gets the tab keys by name, and first responder is
+/// something you can simply set.
+private struct LineEditor: NSViewRepresentable {
+    let text: String
+    let isDone: Bool
+    let onText: (String) -> Void
     let onKey: (ListEditorKey) -> Void
 
-    func makeNSView(context: Context) -> KeyCaptureNSView {
-        let view = KeyCaptureNSView()
-        view.isEnabled = isEnabled
-        view.onKey = onKey
-        if isEnabled {
-            DispatchQueue.main.async { view.window?.makeFirstResponder(view) }
-        }
-        return view
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onText: onText, onKey: onKey)
     }
 
-    func updateNSView(_ nsView: KeyCaptureNSView, context: Context) {
-        nsView.isEnabled = isEnabled
-        nsView.onKey = onKey
-        if isEnabled, nsView.window?.firstResponder !== nsView {
-            DispatchQueue.main.async { nsView.window?.makeFirstResponder(nsView) }
+    func makeNSView(context: Context) -> CommandTextField {
+        let field = CommandTextField()
+        field.wantsFocus = true
+        field.delegate = context.coordinator
+        field.isBordered = false
+        field.drawsBackground = false
+        field.focusRingType = .none
+        field.font = .preferredFont(forTextStyle: .body)
+        field.lineBreakMode = .byTruncatingTail
+        field.cell?.usesSingleLineMode = true
+        field.stringValue = text
+        field.onCommand = { context.coordinator.onKey($0) }
+        return field
+    }
+
+    func updateNSView(_ field: CommandTextField, context: Context) {
+        context.coordinator.onText = onText
+        context.coordinator.onKey = onKey
+        field.onCommand = { context.coordinator.onKey($0) }
+        if field.stringValue != text {
+            field.stringValue = text
+        }
+        field.textColor = NSColor.white.withAlphaComponent(isDone ? 0.24 : 0.86)
+
+        field.takeFocusIfNeeded()
+    }
+
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        var onText: (String) -> Void
+        var onKey: (ListEditorKey) -> Void
+
+        init(onText: @escaping (String) -> Void, onKey: @escaping (ListEditorKey) -> Void) {
+            self.onText = onText
+            self.onKey = onKey
+        }
+
+        func controlTextDidChange(_ notification: Notification) {
+            guard let field = notification.object as? NSTextField else { return }
+            onText(field.stringValue)
+        }
+
+        func control(
+            _ control: NSControl,
+            textView: NSTextView,
+            doCommandBy selector: Selector
+        ) -> Bool {
+            switch selector {
+            case #selector(NSResponder.insertNewline(_:)):
+                onKey(.newLine)
+            case #selector(NSResponder.insertTab(_:)):
+                onKey(.indent)
+            case #selector(NSResponder.insertBacktab(_:)):
+                onKey(.unindent)
+            case #selector(NSResponder.moveUp(_:)):
+                onKey(.moveUp)
+            case #selector(NSResponder.moveDown(_:)):
+                onKey(.moveDown)
+            case #selector(NSResponder.cancelOperation(_:)):
+                onKey(.escape)
+            case #selector(NSResponder.deleteBackward(_:)):
+                // Only when there is nothing left to delete; otherwise the field keeps its
+                // own character handling.
+                guard control.stringValue.isEmpty else { return false }
+                onKey(.deleteBackward)
+            default:
+                return false
+            }
+            return true
         }
     }
 }
 
-private final class KeyCaptureNSView: NSView {
-    var isEnabled = true
-    var onKey: ((ListEditorKey) -> Void)?
+/// Command shortcuts have to be caught before the field editor turns them into text
+/// editing commands, which is what `performKeyEquivalent` is for.
+private final class CommandTextField: NSTextField {
+    var onCommand: ((ListEditorKey) -> Void)?
 
-    override var acceptsFirstResponder: Bool { isEnabled }
+    /// Set once, for the lifetime of the view: this field is only ever built for the
+    /// selected line.
+    var wantsFocus = false
 
-    override func keyDown(with event: NSEvent) {
-        guard let key = Self.editorKey(for: event) else {
-            super.keyDown(with: event)
-            return
-        }
-        onKey?(key)
+    /// Moving the selection destroys one of these views and builds another, and the new
+    /// one is not in a window yet when SwiftUI first updates it. Asking for first responder
+    /// at that moment silently does nothing — which is why pressing Return created the new
+    /// line but left the caret behind, and nothing typed afterwards arrived anywhere.
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        takeFocusIfNeeded()
     }
 
-    private static func editorKey(for event: NSEvent) -> ListEditorKey? {
-        if event.keyCode == 48 {
-            return event.modifierFlags.contains(.shift) ? .unindent : .indent
+    func takeFocusIfNeeded() {
+        guard wantsFocus, let window else { return }
+        if let editor = currentEditor(), window.firstResponder === editor { return }
+
+        // Synchronously where possible. Every asynchronous hop is a window in which the
+        // overlay is on screen with nothing focused, and a keystroke in that gap goes to
+        // the application underneath instead.
+        if window.makeFirstResponder(self) {
+            placeCaretAtEnd()
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let window = self.window else { return }
+                if window.makeFirstResponder(self) { self.placeCaretAtEnd() }
+            }
         }
-        if event.modifierFlags.contains(.command), event.charactersIgnoringModifiers?.lowercased() == "k" {
-            return .openSwitcher
+    }
+
+    /// `makeFirstResponder` selects the whole field, so switching lines armed Backspace to
+    /// wipe the task you just moved to. The caret belongs after the last character, the way
+    /// it would in any editor.
+    private func placeCaretAtEnd() {
+        guard let editor = currentEditor() else { return }
+        let end = (stringValue as NSString).length
+        editor.selectedRange = NSRange(location: end, length: 0)
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command else {
+            return super.performKeyEquivalent(with: event)
         }
-        return switch event.charactersIgnoringModifiers?.lowercased() {
-        case "\u{f700}", "w": .moveUp
-        case "\u{f701}", "s": .moveDown
-        case " ": .toggleDone
-        case "\r": .enter
-        case "n": .newItem
-        case "a": .setAnchor
-        case "\u{1b}": .escape
-        default: nil
+        switch event.charactersIgnoringModifiers?.lowercased() {
+        case "\r":
+            onCommand?(.setAnchor)
+        case "d":
+            onCommand?(.toggleDone)
+        case "k":
+            onCommand?(.openSwitcher)
+        default:
+            return super.performKeyEquivalent(with: event)
         }
+        return true
     }
 }

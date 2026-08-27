@@ -96,13 +96,11 @@ final class ListStoreTests: XCTestCase {
 
         XCTAssertEqual(state.activeListSlug, "alpha")
         XCTAssertNil(state.anchorIndex)
-        XCTAssertNil(state.snoozeDeadline)
     }
 
-    func testStateRoundTripsAnchorAndSnoozeDeadline() throws {
-        let deadline = Date(timeIntervalSince1970: 1_800_000_000)
+    func testStateRoundTripsTheAnchor() throws {
         let slug = try store.create(name: "Work", items: [], context: "")
-        let state = AppState(activeListSlug: slug, anchorIndex: 3, snoozeDeadline: deadline)
+        let state = AppState(activeListSlug: slug, anchorIndex: 3)
 
         try store.saveState(state)
 
@@ -120,7 +118,7 @@ final class ListStoreTests: XCTestCase {
             ],
             context: ""
         )
-        try store.saveState(AppState(activeListSlug: slug, anchorIndex: 0, snoozeDeadline: nil))
+        try store.saveState(AppState(activeListSlug: slug, anchorIndex: 0))
 
         let anchor = try store.goSmaller(text: "Small next step")
 
@@ -164,7 +162,7 @@ final class ListStoreTests: XCTestCase {
             ],
             context: ""
         )
-        try store.saveState(AppState(activeListSlug: slug, anchorIndex: 1, snoozeDeadline: nil))
+        try store.saveState(AppState(activeListSlug: slug, anchorIndex: 1))
 
         let anchor = try store.setNewAnchor(text: "Different work")
 
@@ -179,15 +177,13 @@ final class ListStoreTests: XCTestCase {
             items: [Item(text: "Keep working", depth: 0, done: false)],
             context: "Keep this context"
         )
-        let original = AppState(activeListSlug: slug, anchorIndex: 0, snoozeDeadline: nil)
-        try store.saveState(original)
-        let deadline = Date(timeIntervalSince1970: 1_800_000_000)
+        let original = AppState(activeListSlug: slug, anchorIndex: 0)
 
-        try store.snooze(until: deadline)
+        try store.saveState(original)
 
         XCTAssertEqual(
             try store.loadState(),
-            AppState(activeListSlug: slug, anchorIndex: 0, snoozeDeadline: deadline)
+            AppState(activeListSlug: slug, anchorIndex: 0)
         )
         XCTAssertEqual(try store.loadList(slug: slug).items, [
             Item(text: "Keep working", depth: 0, done: false),
